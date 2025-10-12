@@ -1254,6 +1254,10 @@ def train_step(forward_step_func, data_iterator, model, optimizer, opt_param_sch
                     optim_instance._copy_main_params_to_param_buffer()
 
         # Forward pass.
+        # print(f"args.seq_length: {args.seq_length}")
+        # print(f"args.micro_batch_size: {args.micro_batch_size}")
+        # print(f"args.decoder_seq_length: {args.decoder_seq_length}")
+        # print(f"data_iterator(): {data_iterator}")
         losses_reduced = forward_backward_func(
             forward_step_func=forward_step_func,
             data_iterator=data_iterator,

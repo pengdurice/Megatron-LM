@@ -67,7 +67,7 @@ def _split_along_first_dim(input_, group):
     dim_size = input_.size()[0]
     assert (
         dim_size % world_size == 0
-    ), "First dimension of the tensor should be divisible by tensor parallel size"
+    ), f"First dimension of the tensor should be divisible by tensor parallel size, but dims={dim_size} and world_size={world_size}"
     local_dim_size = dim_size // world_size
     rank = group.rank()
     dim_offset = rank * local_dim_size

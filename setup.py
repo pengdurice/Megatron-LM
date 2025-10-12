@@ -1,8 +1,10 @@
 import subprocess
 
-from setuptools import Extension, setup
+from setuptools import Extension, setup, find_packages
 
 setup_args = dict(
+    name="megatron-lm",
+    packages=find_packages(),
     ext_modules=[
         Extension(
             "megatron.core.datasets.helpers_cpp",
