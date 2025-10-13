@@ -3,7 +3,7 @@ import subprocess
 from setuptools import Extension, setup, find_packages
 
 setup_args = dict(
-    name="megatron-lm",
+    name="megatron-core",
     packages=find_packages(),
     ext_modules=[
         Extension(
