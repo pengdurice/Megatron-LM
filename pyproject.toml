@@ -20,7 +20,7 @@ include = [
     "megatron.rl",
     "megatron.rl.*",
     "megatron.legacy",
-    "megatron.legacy.*"
+    "megatron.legacy.*",
 ]
 
 [tool.setuptools.dynamic]
