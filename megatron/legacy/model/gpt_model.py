@@ -3,9 +3,7 @@
 """GPT-2 model."""
 
 import torch
-# from typing import Optional
-from collections import OrderedDict
-from typing import Dict, Literal, Optional
+from typing import Optional
 from megatron.training import get_args
 from megatron.core import tensor_parallel
 from megatron.core.utils import deprecate_inference_params

@@ -80,7 +80,7 @@ def _set_signal_handler():
 
 
 
-def set_global_variables(args, build_tokenizer=False):
+def set_global_variables(args, build_tokenizer=True):
     """Set args, tokenizer, tensorboard-writer, adlr-autoresume, and timers."""
 
     assert args is not None
