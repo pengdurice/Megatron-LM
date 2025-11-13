@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from typing import Optional, Union
 
 import torch
-
+import logging
 from megatron.core import parallel_state, tensor_parallel, utils
+from megatron.core.debug_utils import debug_log, is_debug_enabled, debug_assert
 from megatron.core.process_groups_config import ProcessGroupCollection
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.moe.moe_utils import get_default_pg_collection
@@ -28,6 +29,8 @@ try:
     HAVE_TE = True
 except ImportError:
     HAVE_TE = False
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -59,9 +62,9 @@ class BaseMoELayer(MegatronModule, ABC):
         self.attn_tp_group = pg_collection.tp
         ep_size = utils.get_pg_size(self.ep_group)
         ep_rank = utils.get_pg_rank(self.ep_group)
-        assert ep_size > 0, "Expected non-negative expert parallel size"
+        debug_assert(ep_size > 0, "Expected non-negative expert parallel size")
 
-        assert self.config.num_moe_experts % ep_size == 0
+        debug_assert(self.config.num_moe_experts % ep_size == 0)
         self.num_local_experts = self.config.num_moe_experts // ep_size
         local_expert_indices_offset = ep_rank * self.num_local_experts
 
@@ -71,7 +74,7 @@ class BaseMoELayer(MegatronModule, ABC):
         self.local_expert_indices = [
             local_expert_indices_offset + i for i in range(self.num_local_experts)
         ]
-        assert all(map(lambda x: x < self.config.num_moe_experts, self.local_expert_indices))
+        debug_assert(all(map(lambda x: x < self.config.num_moe_experts, self.local_expert_indices)))
         self.router: TopKRouter = None
         self.experts = None
         self.shared_experts = None
@@ -175,10 +178,84 @@ class MoELayer(BaseMoELayer):
         hidden states are returned as a residual connection.
         """
         residual = hidden_states
+        if hidden_states is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 178, hidden_states: {hidden_states.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 178, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 178, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 178, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(hidden_states).any():
+
+                    raise ValueError(f"hidden_states contains NaN values at line 178. Shape: {hidden_states.shape}")
+                if torch.isinf(hidden_states).any():
+                    raise ValueError(f"hidden_states contains inf values at line 178. Shape: {hidden_states.shape}")
+                if torch.isneginf(hidden_states).any():
+                    raise ValueError(f"hidden_states contains -inf values at line 178. Shape: {hidden_states.shape}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 178, hidden_states is None")
         probs, routing_map = self.router(hidden_states)
+        if probs is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 182, probs: {probs.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 182, probs has nan: {torch.isnan(probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 182, probs has inf: {torch.isinf(probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 182, probs has -inf: {torch.isneginf(probs).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(probs).any():
+
+                    raise ValueError(f"probs contains NaN values at line 182. Shape: {probs.shape}")
         hidden_states, probs = self.token_dispatcher.dispatch_preprocess(
             hidden_states, routing_map, probs
         )
+        if hidden_states is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 186, hidden_states: {hidden_states.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 186, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 186, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 186, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(hidden_states).any():
+
+                    raise ValueError(f"hidden_states contains NaN values at line 186. Shape: {hidden_states.shape}")
+                if torch.isinf(hidden_states).any():
+                    raise ValueError(f"hidden_states contains inf values at line 186. Shape: {hidden_states.shape}")
+                if torch.isneginf(hidden_states).any():
+                    raise ValueError(f"hidden_states contains -inf values at line 186. Shape: {hidden_states.shape}")
+        if probs is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 186, probs: {probs.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 186, probs has nan: {torch.isnan(probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 186, probs has inf: {torch.isinf(probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 186, probs has -inf: {torch.isneginf(probs).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(probs).any():
+
+                    raise ValueError(f"probs contains NaN values at line 186. Shape: {probs.shape}")
+                if torch.isinf(probs).any():
+                    raise ValueError(f"probs contains inf values at line 186. Shape: {probs.shape}")
+                if torch.isneginf(probs).any():
+                    raise ValueError(f"probs contains -inf values at line 186. Shape: {probs.shape}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in moe layer line 186, probs is None")
         return hidden_states, probs, residual
 
     def dispatch(self, hidden_states: torch.Tensor, probs: torch.Tensor):
@@ -225,13 +302,142 @@ class MoELayer(BaseMoELayer):
         for each expert. It then passes the tokens through the local experts.
         The output from the experts is preprocessed for the combine step.
         """
+        debug_log(logger, logging.INFO,f"in moe layer line 228, hidden_states: {hidden_states.shape}")
+        debug_log(logger, logging.INFO,f"in moe layer line 228, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+        debug_log(logger, logging.INFO,f"in moe layer line 228, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+        debug_log(logger, logging.INFO,f"in moe layer line 228, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(hidden_states).any():
+
+                raise ValueError(f"hidden_states contains NaN values at line 228. Shape: {hidden_states.shape}")
+            if torch.isinf(hidden_states).any():
+                raise ValueError(f"hidden_states contains inf values at line 228. Shape: {hidden_states.shape}")
+            if torch.isneginf(hidden_states).any():
+                raise ValueError(f"hidden_states contains -inf values at line 228. Shape: {hidden_states.shape}")
+        debug_log(logger, logging.INFO,f"in moe layer line 228, probs: {probs.shape}")
+        debug_log(logger, logging.INFO,f"in moe layer line 228, probs has nan: {torch.isnan(probs).any()}")
+        debug_log(logger, logging.INFO,f"in moe layer line 228, probs has inf: {torch.isinf(probs).any()}")
+        debug_log(logger, logging.INFO,f"in moe layer line 228, probs has -inf: {torch.isneginf(probs).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(probs).any():
+
+                raise ValueError(f"probs contains NaN values at line 228. Shape: {probs.shape}")
+            if torch.isinf(probs).any():
+                raise ValueError(f"probs contains inf values at line 228. Shape: {probs.shape}")
+            if torch.isneginf(probs).any():
+                raise ValueError(f"probs contains -inf values at line 228. Shape: {probs.shape}")
         dispatched_input, tokens_per_expert, permuted_probs = (
             self.token_dispatcher.dispatch_postprocess(hidden_states, probs)
         )
-        expert_output, mlp_bias = self.experts(dispatched_input, tokens_per_expert, permuted_probs)
-        assert mlp_bias is None, f"mlp_bias is not supported for {type(self.token_dispatcher)}"
-        output = self.token_dispatcher.combine_preprocess(expert_output)
+        if dispatched_input is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 231, dispatched_input: {dispatched_input.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 231, dispatched_input has nan: {torch.isnan(dispatched_input).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 231, dispatched_input has inf: {torch.isinf(dispatched_input).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 231, dispatched_input has -inf: {torch.isneginf(dispatched_input).any()}")
+            if is_debug_enabled():
 
+                if torch.isnan(dispatched_input).any():
+
+                    raise ValueError(f"dispatched_input contains NaN values at line 231. Shape: {dispatched_input.shape}")
+                if torch.isinf(dispatched_input).any():
+                    raise ValueError(f"dispatched_input contains inf values at line 231. Shape: {dispatched_input.shape}")
+                if torch.isneginf(dispatched_input).any():
+                    raise ValueError(f"dispatched_input contains -inf values at line 231. Shape: {dispatched_input.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 231, tokens_per_expert: {tokens_per_expert}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 231, permuted_probs: {permuted_probs}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 231, permuted_probs has nan: {torch.isnan(permuted_probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 231, permuted_probs has inf: {torch.isinf(permuted_probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 231, permuted_probs has -inf: {torch.isneginf(permuted_probs).any()}")
+            if permuted_probs is not None:
+                if is_debug_enabled():
+
+                    if torch.isnan(permuted_probs).any():
+
+                        raise ValueError(f"permuted_probs contains NaN values at line 231. Shape: {permuted_probs.shape}")
+                    if torch.isinf(permuted_probs).any():
+                        raise ValueError(f"permuted_probs contains inf values at line 231. Shape: {permuted_probs.shape}")
+                    if torch.isneginf(permuted_probs).any():
+                        raise ValueError(f"permuted_probs contains -inf values at line 231. Shape: {permuted_probs.shape}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 231, dispatched_input is None")
+        expert_output, mlp_bias = self.experts(dispatched_input, tokens_per_expert, permuted_probs)
+        if expert_output is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 244, expert_output: {expert_output.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 244, expert_output has nan: {torch.isnan(expert_output).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 244, expert_output has inf: {torch.isinf(expert_output).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 244, expert_output has -inf: {torch.isneginf(expert_output).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(expert_output).any():
+
+                    raise ValueError(f"expert_output contains NaN values at line 244. Shape: {expert_output.shape}")
+                if torch.isinf(expert_output).any():
+                    raise ValueError(f"expert_output contains inf values at line 244. Shape: {expert_output.shape}")
+                if torch.isneginf(expert_output).any():
+                    raise ValueError(f"expert_output contains -inf values at line 244. Shape: {expert_output.shape}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 244, expert_output is None")
+        if mlp_bias is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 244, mlp_bias: {mlp_bias}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 244, mlp_bias has nan: {torch.isnan(mlp_bias).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 244, mlp_bias has inf: {torch.isinf(mlp_bias).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 244, mlp_bias has -inf: {torch.isneginf(mlp_bias).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(mlp_bias).any():
+
+                    raise ValueError(f"mlp_bias contains NaN values at line 244. Shape: {mlp_bias.shape}")
+                if torch.isinf(mlp_bias).any():
+                    raise ValueError(f"mlp_bias contains inf values at line 244. Shape: {mlp_bias.shape}")
+                if torch.isneginf(mlp_bias).any():
+                    raise ValueError(f"mlp_bias contains -inf values at line 244. Shape: {mlp_bias.shape}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 244, mlp_bias is None")
+        debug_assert(mlp_bias is None, f"mlp_bias is not supported for {type(self.token_dispatcher)}")
+        output = self.token_dispatcher.combine_preprocess(expert_output)
+        if output is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 259, output: {output.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 259, output has nan: {torch.isnan(output).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 259, output has inf: {torch.isinf(output).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 259, output has -inf: {torch.isneginf(output).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(output).any():
+
+                    raise ValueError(f"output contains NaN values at line 259. Shape: {output.shape}")
+                if torch.isinf(output).any():
+                    raise ValueError(f"output contains inf values at line 259. Shape: {output.shape}")
+                if torch.isneginf(output).any():
+                    raise ValueError(f"output contains -inf values at line 259. Shape: {output.shape}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 259, output is None")
         return output, mlp_bias
 
     def combine(self, output: torch.Tensor, shared_expert_output: Optional[torch.Tensor]):
@@ -270,14 +476,194 @@ class MoELayer(BaseMoELayer):
 
         # MoE forward: route -> dispatch -> compute -> combine
         def custom_forward(hidden_states):
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 273, custom_forward is called")
+            if hidden_states is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 274, hidden_states: {hidden_states.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 274, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 274, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 274, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(hidden_states).any():
+
+                        raise ValueError(f"hidden_states contains NaN values at line 274. Shape: {hidden_states.shape}")
+                    if torch.isinf(hidden_states).any():
+                        raise ValueError(f"hidden_states contains inf values at line 274. Shape: {hidden_states.shape}")
+                    if torch.isneginf(hidden_states).any():
+                        raise ValueError(f"hidden_states contains -inf values at line 274. Shape: {hidden_states.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 274, hidden_states is None")
             shared_expert_output = self.shared_experts_compute(hidden_states)
+            if shared_expert_output is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 278, shared_expert_output: {shared_expert_output.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 278, shared_expert_output has nan: {torch.isnan(shared_expert_output).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 278, shared_expert_output has inf: {torch.isinf(shared_expert_output).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 278, shared_expert_output has -inf: {torch.isneginf(shared_expert_output).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(shared_expert_output).any():
+
+                        raise ValueError(f"shared_expert_output contains NaN values at line 278. Shape: {shared_expert_output.shape}")
+                    if torch.isinf(shared_expert_output).any():
+                        raise ValueError(f"shared_expert_output contains inf values at line 278. Shape: {shared_expert_output.shape}")
+                    if torch.isneginf(shared_expert_output).any():
+                        raise ValueError(f"shared_expert_output contains -inf values at line 278. Shape: {shared_expert_output.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 278, shared_expert_output is None")
             hidden_states, probs, residual = self.router_and_preprocess(hidden_states)
+            if hidden_states is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 282, hidden_states: {hidden_states.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 282, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 282, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 282, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(hidden_states).any():
+
+                        raise ValueError(f"hidden_states contains NaN values at line 282. Shape: {hidden_states.shape}")
+                    if torch.isinf(hidden_states).any():
+                        raise ValueError(f"hidden_states contains inf values at line 282. Shape: {hidden_states.shape}")
+                    if torch.isneginf(hidden_states).any():
+                        raise ValueError(f"hidden_states contains -inf values at line 282. Shape: {hidden_states.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 282, hidden_states is None")
             dispatched_input, probs = self.dispatch(hidden_states, probs)
+            if dispatched_input is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 286, dispatched_input: {dispatched_input.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 286, dispatched_input has nan: {torch.isnan(dispatched_input).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 286, dispatched_input has inf: {torch.isinf(dispatched_input).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 286, dispatched_input has -inf: {torch.isneginf(dispatched_input).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(dispatched_input).any():
+
+                        raise ValueError(f"dispatched_input contains NaN values at line 286. Shape: {dispatched_input.shape}")
+                    if torch.isinf(dispatched_input).any():
+                        raise ValueError(f"dispatched_input contains inf values at line 286. Shape: {dispatched_input.shape}")
+                    if torch.isneginf(dispatched_input).any():
+                        raise ValueError(f"dispatched_input contains -inf values at line 286. Shape: {dispatched_input.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 286, dispatched_input is None")
             output, mlp_bias = self.routed_experts_compute(dispatched_input, probs, residual)
+            if output is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 290, output: {output.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 290, output has nan: {torch.isnan(output).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 290, output has inf: {torch.isinf(output).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 290, output has -inf: {torch.isneginf(output).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(output).any():
+
+                        raise ValueError(f"output contains NaN values at line 290. Shape: {output.shape}")
+                    if torch.isinf(output).any():
+                        raise ValueError(f"output contains inf values at line 290. Shape: {output.shape}")
+                    if torch.isneginf(output).any():
+                        raise ValueError(f"output contains -inf values at line 290. Shape: {output.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 290, output is None")
+            if mlp_bias is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 294, mlp_bias: {mlp_bias.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 294, mlp_bias has nan: {torch.isnan(mlp_bias).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 294, mlp_bias has inf: {torch.isinf(mlp_bias).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 294, mlp_bias has -inf: {torch.isneginf(mlp_bias).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(mlp_bias).any():
+
+                        raise ValueError(f"mlp_bias contains NaN values at line 294. Shape: {mlp_bias.shape}")
+                    if torch.isinf(mlp_bias).any():
+                        raise ValueError(f"mlp_bias contains inf values at line 294. Shape: {mlp_bias.shape}")
+                    if torch.isneginf(mlp_bias).any():
+                        raise ValueError(f"mlp_bias contains -inf values at line 294. Shape: {mlp_bias.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 294, mlp_bias is None")
             output = self.combine(output, shared_expert_output)
+            if output is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 298, output: {output.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 298, output has nan: {torch.isnan(output).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 298, output has inf: {torch.isinf(output).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 298, output has -inf: {torch.isneginf(output).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(output).any():
+
+                        raise ValueError(f"output contains NaN values at line 298. Shape: {output.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(output).any():
+                        raise ValueError(f"output contains inf values at line 298. Shape: {output.shape}")
+                if is_debug_enabled():
+
+                    if torch.isneginf(output).any():
+
+                        raise ValueError(f"output contains -inf values at line 298. Shape: {output.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 298, output is None")
+            if mlp_bias is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 302, mlp_bias: {mlp_bias.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 302, mlp_bias has nan: {torch.isnan(mlp_bias).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 302, mlp_bias has inf: {torch.isinf(mlp_bias).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 302, mlp_bias has -inf: {torch.isneginf(mlp_bias).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(mlp_bias).any():
+
+                        raise ValueError(f"mlp_bias contains NaN values at line 302. Shape: {mlp_bias.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(mlp_bias).any():
+                        raise ValueError(f"mlp_bias contains inf values at line 302. Shape: {mlp_bias.shape}")
+                if is_debug_enabled():
+
+                    if torch.isneginf(mlp_bias).any():
+
+                        raise ValueError(f"mlp_bias contains -inf values at line 302. Shape: {mlp_bias.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 302, mlp_bias is None")
             return output, mlp_bias
 
         if self.moe_layer_recompute:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe layer line 281, moe_layer_recompute is True")
             if self.config.fp8:
                 output, mlp_bias = te_checkpoint(
                     custom_forward,
@@ -287,6 +673,8 @@ class MoELayer(BaseMoELayer):
                     hidden_states,
                 )
             else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in moe layer line 291, moe_layer_recompute is True and fp8 is False")
                 output, mlp_bias = tensor_parallel.checkpoint(custom_forward, False, hidden_states)
         else:
             output, mlp_bias = custom_forward(hidden_states)

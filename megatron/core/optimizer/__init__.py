@@ -305,6 +305,7 @@ def _get_megatron_optimizer_based_on_param_groups(
     # when freezing sub-models we may have no trainable parameters on a rank and
     # hence an empty param_groups. However, we still need to create an optimizer
     # for the purposes of grad stats reductions
+    log_single_rank(logger, logging.INFO, f"per_model_buffers: {per_model_buffers}")
     if param_groups:
         if config.optimizer_cpu_offload:
             if torch.__version__ < '2.3.0':

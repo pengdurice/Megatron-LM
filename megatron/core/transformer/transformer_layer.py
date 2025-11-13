@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Union
 import torch
 import torch.distributed
 from torch import Tensor
-
+from megatron.core.debug_utils import debug_log, is_debug_enabled, debug_assert
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import apply_prefix_mapping
@@ -165,9 +165,10 @@ def get_transformer_layer_offset(
             from megatron.core.pipeline_parallel.utils import is_vp_first_stage
 
             if (vp_size := config.virtual_pipeline_model_parallel_size) is not None:
-                assert (
-                    vp_stage is not None
-                ), "vp_stage must be provided if virtual pipeline model parallel size is set"
+                debug_assert(
+                    vp_stage is not None,
+                    "vp_stage must be provided if virtual pipeline model parallel size is set"
+                )
 
                 num_layers_per_virtual_rank = num_layers_per_pipeline_rank // vp_size
                 total_virtual_chunks = num_layers // vp_size
@@ -481,19 +482,45 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
         """
 
         inference_context = deprecate_inference_params(inference_context, inference_params)
-
+        if hidden_states is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 499, hidden_states: {hidden_states.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 499, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 499, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 499, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 499, hidden_states is None")  
         # Residual connection.
         residual = hidden_states
 
         # Optional Input Layer norm
         if self.recompute_input_layernorm:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 500, recompute_input_layernorm is True")
             self.input_layernorm_checkpoint = tensor_parallel.CheckpointWithoutOutput()
             input_layernorm_output = self.input_layernorm_checkpoint.checkpoint(
                 self.input_layernorm, hidden_states
             )
         else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 501, recompute_input_layernorm is False")
             input_layernorm_output = self.input_layernorm(hidden_states)
-
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in transformer layer line 502, input_layernorm_output: {input_layernorm_output.shape}")
+        if input_layernorm_output is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 506, input_layernorm_output has nan: {torch.isnan(input_layernorm_output).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 506, input_layernorm_output has inf: {torch.isinf(input_layernorm_output).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 506, input_layernorm_output has -inf: {torch.isneginf(input_layernorm_output).any()}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 506, input_layernorm_output is None")        
         # Self attention.
         nvtx_range_push(suffix="self_attention")
         attention_output_with_bias = self.self_attention(
@@ -509,7 +536,16 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
             sequence_len_offset=sequence_len_offset,
         )
         nvtx_range_pop(suffix="self_attention")
-
+        if attention_output_with_bias is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 527, attention_output_with_bias has nan: {torch.isnan(attention_output_with_bias[0]).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 527, attention_output_with_bias has inf: {torch.isinf(attention_output_with_bias[0]).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 527, attention_output_with_bias has -inf: {torch.isneginf(attention_output_with_bias[0]).any()}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 527, attention_output_with_bias is None")          
         if self.recompute_input_layernorm:
             # discard the output of the input layernorm and register the recompute
             # as a gradient hook of attention_output_with_bias[0]
@@ -528,7 +564,18 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
 
         # Residual connection.
         residual = hidden_states
-
+        if hidden_states is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 540, hidden_states: {hidden_states.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 540, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 540, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 540, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 540, hidden_states is None")  
         # Optional Layer norm after self-attention
         pre_cross_attn_layernorm_output = self.pre_cross_attn_layernorm(hidden_states)
 
@@ -549,7 +596,18 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
             hidden_states = self.cross_attn_bda(self.training, self.config.bias_dropout_fusion)(
                 attention_output_with_bias, residual, self.hidden_dropout
             )
-
+        if hidden_states is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 578, hidden_states: {hidden_states.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 578, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 578, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 578, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 578, hidden_states is None") 
         return hidden_states, context
 
     def _forward_mlp(self, hidden_states, inference_context=None):
@@ -565,7 +623,18 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
 
         # Residual connection.
         residual = hidden_states
-
+        if hidden_states is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 599, hidden_states: {hidden_states.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 599, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 599, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 599, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 599, hidden_states is None") 
         # Optional Layer norm post the cross-attention.
         if self.recompute_pre_mlp_layernorm:
             self.pre_mlp_norm_checkpoint = tensor_parallel.CheckpointWithoutOutput()
@@ -574,7 +643,18 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
             )
         else:
             pre_mlp_layernorm_output = self.pre_mlp_layernorm(hidden_states)
-
+        if pre_mlp_layernorm_output is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 614, pre_mlp_layernorm_output: {pre_mlp_layernorm_output.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 614, pre_mlp_layernorm_output has nan: {torch.isnan(pre_mlp_layernorm_output).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 614, pre_mlp_layernorm_output has inf: {torch.isinf(pre_mlp_layernorm_output).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 614, pre_mlp_layernorm_output has -inf: {torch.isneginf(pre_mlp_layernorm_output).any()}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 614, pre_mlp_layernorm_output is None") 
         nvtx_range_push(suffix="mlp")
         # Potentially chunk the MLP computation during prefill to minimize the peak activation size
         should_chunk_mlp_for_prefill = (
@@ -585,6 +665,8 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
         )
 
         if self.recompute_mlp:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 631, recompute_mlp is True")
             if self.config.fp8:
                 # import here to avoid circular import
                 from megatron.core.extensions.transformer_engine import te_checkpoint
@@ -600,6 +682,18 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
                 mlp_output_with_bias = tensor_parallel.checkpoint(
                     self.mlp, False, pre_mlp_layernorm_output
                 )
+            if mlp_output_with_bias is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 647, mlp_output_with_bias: {mlp_output_with_bias[0].shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 647, mlp_output_with_bias has nan: {torch.isnan(mlp_output_with_bias[0]).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 647, mlp_output_with_bias has inf: {torch.isinf(mlp_output_with_bias[0]).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 647, mlp_output_with_bias has -inf: {torch.isneginf(mlp_output_with_bias[0]).any()}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 647, mlp_output_with_bias is None")
         elif should_chunk_mlp_for_prefill:
             # Chunk input along sequence dimension
             num_chunks = min(self.config.mlp_chunks_for_prefill, pre_mlp_layernorm_output.shape[0])
@@ -613,10 +707,32 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
             bias_chunks = [bias for _, bias in outputs if bias is not None]
             bias_output = torch.stack(bias_chunks, dim=0).sum(dim=0) if bias_chunks else None
             mlp_output_with_bias = (mlp_output, bias_output)
-
+            if mlp_output_with_bias is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 668, mlp_output_with_bias: {mlp_output_with_bias[0].shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 668, mlp_output_with_bias has nan: {torch.isnan(mlp_output_with_bias[0]).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 668, mlp_output_with_bias has inf: {torch.isinf(mlp_output_with_bias[0]).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 668, mlp_output_with_bias has -inf: {torch.isneginf(mlp_output_with_bias[0]).any()}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 668, mlp_output_with_bias is None")
         else:
             mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
-
+            if mlp_output_with_bias is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 677, mlp_output_with_bias: {mlp_output_with_bias[0].shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 677, mlp_output_with_bias has nan: {torch.isnan(mlp_output_with_bias[0]).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 677, mlp_output_with_bias has inf: {torch.isinf(mlp_output_with_bias[0]).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 677, mlp_output_with_bias has -inf: {torch.isneginf(mlp_output_with_bias[0]).any()}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in transformer layer line 677, mlp_output_with_bias is None")
         if self.recompute_pre_mlp_layernorm:
             # discard the output of the pre-mlp layernorm and register the recompute
             # as a gradient hook of mlp_output_with_bias[0]
@@ -643,7 +759,18 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
         output = make_viewless_tensor(
             inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True
         )
-
+        if output is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 697, output: {output.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 697, output has nan: {torch.isnan(output).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 697, output has inf: {torch.isinf(output).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 697, output has -inf: {torch.isneginf(output).any()}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in transformer layer line 697, output is None")
         return output
 
     def sharded_state_dict(
@@ -696,9 +823,10 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
         if self.config.cuda_graph_scope == 'full':
             submodules = [self]
         else:
-            assert (
-                self.config.cuda_graph_scope == 'attn'
-            ), f"Invalid cuda_graph_scope {self.config.cuda_graph_scope}"
+            debug_assert(
+                self.config.cuda_graph_scope == 'attn',
+                f"Invalid cuda_graph_scope {self.config.cuda_graph_scope}"
+            )
             submodules = [
                 self.input_layernorm,
                 self.self_attention,
@@ -733,9 +861,8 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
         Hence, `inference_context` and `packed_seq_params` are excluded from input list.
         """
 
-        assert (kwargs.get('inference_context') is None) and (
-            kwargs.get('packed_seq_params') is None
-        ), (
+        debug_assert(
+            (kwargs.get('inference_context') is None) and (kwargs.get('packed_seq_params') is None),
             "CUDA graph accepts only Tensor inputs. "
             "inference_context and packed_seq_params are excluded from input list. "
             "For inference cuda graph, please use enable_cuda_graph instead."
@@ -760,9 +887,10 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
         """Helper function to get tensor arguments for TE CUDA graph."""
         cudagraph_args, cudagraph_kwargs = super()._get_te_cuda_graph_replay_args(*args, **kwargs)
 
-        assert (
-            len(cudagraph_args) == 1
-        ), "Exactly one positional argument `hidden_states` is expected."
+        debug_assert(
+            len(cudagraph_args) == 1,
+            "Exactly one positional argument `hidden_states` is expected."
+        )
         hidden_states = cudagraph_args[0]
 
         try:
@@ -797,7 +925,7 @@ class TransformerLayer(GraphableMegatronModule, BaseTransformerLayer):
                                 )
                             )
                     elif k != 'is_first_microbatch':
-                        assert v is None, "Keyword Arguments not supported with CUDA graph."
+                        debug_assert(v is None, "Keyword Arguments not supported with CUDA graph.")
             elif (
                 'attention_mask' in cudagraph_kwargs and cudagraph_kwargs['attention_mask'] is None
             ):

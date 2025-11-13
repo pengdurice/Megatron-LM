@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple
 
 import torch
+from megatron.core.debug_utils import debug_log, is_debug_enabled, debug_assert
 
 from megatron.core import utils
 from megatron.core.config import is_experimental_enabled
@@ -42,6 +43,8 @@ from megatron.core.transformer.transformer_config import TransformerConfig
      num_local_tokens: S/TP*B
      num_global_tokens: num_local_tokens*TP*EP
 """
+
+logger = logging.getLogger(__name__)
 
 
 class MoETokenDispatcher:
@@ -190,7 +193,7 @@ class MoETokenDispatcher:
 
     def set_shared_experts(self, shared_experts):
         """Set shared expert to the dispatcher."""
-        assert self.config.moe_shared_expert_overlap
+        debug_assert(self.config.moe_shared_expert_overlap)
         self.shared_experts = shared_experts
 
 
@@ -217,9 +220,9 @@ class MoEAllGatherTokenDispatcher(MoETokenDispatcher):
         """
         super().__init__(config=config, pg_collection=pg_collection)
         self.num_local_experts = num_local_experts
-        assert self.num_local_experts > 0, "Expected at least one expert"
+        debug_assert(self.num_local_experts > 0, "Expected at least one expert")
         self.local_expert_indices = local_expert_indices
-        assert len(self.local_expert_indices) > 0, "Expected at least one local expert index"
+        debug_assert(len(self.local_expert_indices) > 0, "Expected at least one local expert index")
         self.router_topk = config.moe_router_topk
         self.add_bias = config.add_bias_linear
 
@@ -365,17 +368,19 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         """
         super().__init__(config=config, pg_collection=pg_collection)
         self.num_local_experts = num_local_experts
-        assert config.num_moe_experts is not None
+        debug_assert(config.num_moe_experts is not None)
         self.num_experts = config.num_moe_experts
-        assert self.num_local_experts > 0, "Expected at least one expert"
+        debug_assert(self.num_local_experts > 0, "Expected at least one expert")
         self.local_expert_indices = local_expert_indices
-        assert (
-            len(self.local_expert_indices) == self.num_local_experts
-        ), "Invalid local expert indices"
+        debug_assert(
+            len(self.local_expert_indices) == self.num_local_experts,
+            "Invalid local expert indices"
+        )
         for i in range(len(self.local_expert_indices) - 1):
-            assert (
-                self.local_expert_indices[i] == self.local_expert_indices[i + 1] - 1
-            ), "local_expert_indices must be continuous"
+            debug_assert(
+                self.local_expert_indices[i] == self.local_expert_indices[i + 1] - 1,
+                "local_expert_indices must be continuous"
+            )
 
         # [ep_size]. Represents the number of tokens sent by the current rank to other
         # EP ranks.
@@ -403,7 +408,7 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         # Drop and pad the input to capacity.
         self.drop_and_pad = self.config.moe_pad_expert_input_to_capacity
         if self.drop_and_pad:
-            assert self.config.moe_expert_capacity_factor is not None
+            debug_assert(self.config.moe_expert_capacity_factor is not None)
             self.moe_expert_capacity_factor = self.config.moe_expert_capacity_factor
         self.capacity = None
 
@@ -543,10 +548,11 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
                 # to get the `num_global_tokens_per_local_expert` CPU value.
                 self._maybe_update_cuda_sync_point("before_permutation_2")
 
-        assert (
+        debug_assert(
             self.cuda_sync_point_priority[self.cuda_dtoh_point]
-            <= self.cuda_sync_point_priority[self.cuda_sync_point]
-        ), "cuda_sync_point must be after cuda_dtoh_point."
+            <= self.cuda_sync_point_priority[self.cuda_sync_point],
+            "cuda_sync_point must be after cuda_dtoh_point."
+        )
         return num_tokens_per_local_expert
 
     def dispatch_preprocess(
@@ -569,11 +575,28 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         self.hidden_shape = hidden_states.shape
         self.probs = probs
         self.routing_map = routing_map
-        assert probs.dim() == 2, "Expected 2D tensor for probs"
-        assert routing_map.dim() == 2, "Expected 2D tensor for token2expert mask"
-        assert routing_map.dtype == torch.bool, "Expected bool tensor for mask"
+        debug_assert(torch.all(torch.sum(routing_map, dim=1) == 8), f"num_experts must be equal to the sum of routing_map, got {torch.sum(routing_map, dim=1)}, expected 8")
+        debug_assert(probs.dim() == 2, "Expected 2D tensor for probs")
+        debug_assert(routing_map.dim() == 2, "Expected 2D tensor for token2expert mask")
+        debug_assert(routing_map.dtype == torch.bool, "Expected bool tensor for mask")
         hidden_states = hidden_states.view(-1, self.hidden_shape[-1])
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 576, hidden_states: {hidden_states.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 576, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 576, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 576, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+        if is_debug_enabled():
 
+            if torch.isnan(hidden_states).any():
+
+                raise ValueError(f"hidden_states contains NaN values at line 576. Shape: {hidden_states.shape}")
+            if torch.isinf(hidden_states).any():
+                raise ValueError(f"hidden_states contains inf values at line 576. Shape: {hidden_states.shape}")
+            if torch.isneginf(hidden_states).any():
+                raise ValueError(f"hidden_states contains -inf values at line 576. Shape: {hidden_states.shape}")
         if self.config.moe_router_padding_for_fp8:
             pad_multiple = get_fp8_align_size(self.config.fp8_recipe)
             if is_experimental_enabled() and self.config.moe_permute_fusion:
@@ -581,7 +604,8 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             else:
                 self.routing_map = pad_routing_map(self.routing_map, pad_multiple)
         self.tokens_per_expert = self.preprocess(self.routing_map)
-
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 593, tokens_per_expert: {self.tokens_per_expert.shape}")
         if self.shared_experts is not None:
             self.shared_experts.pre_forward_comm(hidden_states.view(self.hidden_shape))
 
@@ -602,6 +626,40 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             fused=self.config.moe_permute_fusion,
             drop_and_pad=self.drop_and_pad,
         )
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 624, permutated_local_input_tokens: {permutated_local_input_tokens.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 624, permutated_local_input_tokens has nan: {torch.isnan(permutated_local_input_tokens).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 624, permutated_local_input_tokens has inf: {torch.isinf(permutated_local_input_tokens).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 624, permutated_local_input_tokens has -inf: {torch.isneginf(permutated_local_input_tokens).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(permutated_local_input_tokens).any():
+
+                raise ValueError(f"permutated_local_input_tokens contains NaN values at line 624. Shape: {permutated_local_input_tokens.shape}")
+            if torch.isinf(permutated_local_input_tokens).any():
+                raise ValueError(f"permutated_local_input_tokens contains inf values at line 624. Shape: {permutated_local_input_tokens.shape}")
+            if torch.isneginf(permutated_local_input_tokens).any():
+                raise ValueError(f"permutated_local_input_tokens contains -inf values at line 624. Shape: {permutated_local_input_tokens.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 624, permuted_probs: {permuted_probs.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 624, permuted_probs has nan: {torch.isnan(permuted_probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 624, permuted_probs has inf: {torch.isinf(permuted_probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 624, permuted_probs has -inf: {torch.isneginf(permuted_probs).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(permuted_probs).any():
+
+                raise ValueError(f"permuted_probs contains NaN values at line 624. Shape: {permuted_probs.shape}")
+            if torch.isinf(permuted_probs).any():
+                raise ValueError(f"permuted_probs contains inf values at line 624. Shape: {permuted_probs.shape}")
+            if torch.isneginf(permuted_probs).any():
+                raise ValueError(f"permuted_probs contains -inf values at line 624. Shape: {permuted_probs.shape}")
         return permutated_local_input_tokens, permuted_probs
 
     def token_dispatch(self, permutated_local_input_tokens, permuted_probs):
@@ -645,9 +703,92 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         Returns:
             A tuple of processed tokens, token counts per expert, and processed probabilities.
         """
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 648, global_input_tokens: {global_input_tokens.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 648, global_input_tokens has nan: {torch.isnan(global_input_tokens).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 648, global_input_tokens has inf: {torch.isinf(global_input_tokens).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 648, global_input_tokens has -inf: {torch.isneginf(global_input_tokens).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(global_input_tokens).any():
+
+                raise ValueError(f"global_input_tokens contains NaN values at line 648. Shape: {global_input_tokens.shape}")
+        if is_debug_enabled():
+            if torch.isinf(global_input_tokens).any():
+                raise ValueError(f"global_input_tokens contains inf values at line 648. Shape: {global_input_tokens.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(global_input_tokens).any():
+
+                raise ValueError(f"global_input_tokens contains -inf values at line 648. Shape: {global_input_tokens.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 648, global_probs: {global_probs.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 648, global_probs has nan: {torch.isnan(global_probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 648, global_probs has inf: {torch.isinf(global_probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 648, global_probs has -inf: {torch.isneginf(global_probs).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(global_probs).any():
+
+                raise ValueError(f"global_probs contains NaN values at line 648. Shape: {global_probs.shape}")
+        if is_debug_enabled():
+            if torch.isinf(global_probs).any():
+                raise ValueError(f"global_probs contains inf values at line 648. Shape: {global_probs.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(global_probs).any():
+
+                raise ValueError(f"global_probs contains -inf values at line 648. Shape: {global_probs.shape}")
         if self.shared_experts is not None:
             self.shared_experts.linear_fc1_forward_and_act(global_input_tokens)
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 659, global_input_tokens: {global_input_tokens.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 659, global_input_tokens has nan: {torch.isnan(global_input_tokens).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 659, global_input_tokens has inf: {torch.isinf(global_input_tokens).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 659, global_input_tokens has -inf: {torch.isneginf(global_input_tokens).any()}")
+            if is_debug_enabled():
 
+                if torch.isnan(global_input_tokens).any():
+
+                    raise ValueError(f"global_input_tokens contains NaN values at line 659. Shape: {global_input_tokens.shape}")
+            if is_debug_enabled():
+                if torch.isinf(global_input_tokens).any():
+                    raise ValueError(f"global_input_tokens contains inf values at line 659. Shape: {global_input_tokens.shape}")
+            if is_debug_enabled():
+
+                if torch.isneginf(global_input_tokens).any():
+
+                    raise ValueError(f"global_input_tokens contains -inf values at line 659. Shape: {global_input_tokens.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 659, global_probs: {global_probs.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 659, global_probs has nan: {torch.isnan(global_probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 659, global_probs has inf: {torch.isinf(global_probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 659, global_probs has -inf: {torch.isneginf(global_probs).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(global_probs).any():
+
+                    raise ValueError(f"global_probs contains NaN values at line 659. Shape: {global_probs.shape}")
+            if is_debug_enabled():
+                if torch.isinf(global_probs).any():
+                    raise ValueError(f"global_probs contains inf values at line 659. Shape: {global_probs.shape}")
+            if is_debug_enabled():
+
+                if torch.isneginf(global_probs).any():
+
+                    raise ValueError(f"global_probs contains -inf values at line 659. Shape: {global_probs.shape}")
         if self.tp_size > 1:
             if self.output_splits_tp is None:
                 output_split_sizes = None
@@ -659,7 +800,48 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             global_probs = gather_from_sequence_parallel_region(
                 global_probs, group=self.tp_group, output_split_sizes=output_split_sizes
             )
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 677, global_input_tokens: {global_input_tokens.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 677, global_input_tokens has nan: {torch.isnan(global_input_tokens).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 677, global_input_tokens has inf: {torch.isinf(global_input_tokens).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 677, global_input_tokens has -inf: {torch.isneginf(global_input_tokens).any()}")
+        if is_debug_enabled():
 
+            if torch.isnan(global_input_tokens).any():
+
+                raise ValueError(f"global_input_tokens contains NaN values at line 677. Shape: {global_input_tokens.shape}")
+        if is_debug_enabled():
+            if torch.isinf(global_input_tokens).any():
+                raise ValueError(f"global_input_tokens contains inf values at line 677. Shape: {global_input_tokens.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(global_input_tokens).any():
+
+                raise ValueError(f"global_input_tokens contains -inf values at line 677. Shape: {global_input_tokens.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 677, global_probs: {global_probs.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 677, global_probs has nan: {torch.isnan(global_probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 677, global_probs has inf: {torch.isinf(global_probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 677, global_probs has -inf: {torch.isneginf(global_probs).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(global_probs).any():
+
+                raise ValueError(f"global_probs contains NaN values at line 677. Shape: {global_probs.shape}")
+        if is_debug_enabled():
+            if torch.isinf(global_probs).any():
+                raise ValueError(f"global_probs contains inf values at line 677. Shape: {global_probs.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(global_probs).any():
+
+                raise ValueError(f"global_probs contains -inf values at line 677. Shape: {global_probs.shape}")
         # Permutation 2: Sort tokens by local expert.
         self.tokens_per_expert = self._maybe_dtoh_and_synchronize(
             "before_permutation_2", self.tokens_per_expert
@@ -689,6 +871,48 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
                     .flatten(start_dim=0, end_dim=2)
                 )
             else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 715, global_input_tokens: {global_input_tokens.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 715, global_input_tokens has nan: {torch.isnan(global_input_tokens).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 715, global_input_tokens has inf: {torch.isinf(global_input_tokens).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 715, global_input_tokens has -inf: {torch.isneginf(global_input_tokens).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(global_input_tokens).any():
+
+                        raise ValueError(f"global_input_tokens contains NaN values at line 715. Shape: {global_input_tokens.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(global_input_tokens).any():
+                        raise ValueError(f"global_input_tokens contains inf values at line 715. Shape: {global_input_tokens.shape}")
+                if is_debug_enabled():
+
+                    if torch.isneginf(global_input_tokens).any():
+
+                        raise ValueError(f"global_input_tokens contains -inf values at line 715. Shape: {global_input_tokens.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 715, global_probs: {global_probs.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 715, global_probs has nan: {torch.isnan(global_probs).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 715, global_probs has inf: {torch.isinf(global_probs).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 715, global_probs has -inf: {torch.isneginf(global_probs).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(global_probs).any():
+
+                        raise ValueError(f"global_probs contains NaN values at line 715. Shape: {global_probs.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(global_probs).any():
+                        raise ValueError(f"global_probs contains inf values at line 715. Shape: {global_probs.shape}")
+                if is_debug_enabled():
+
+                    if torch.isneginf(global_probs).any():
+
+                        raise ValueError(f"global_probs contains -inf values at line 715. Shape: {global_probs.shape}")
                 global_input_tokens, global_probs = sort_chunks_by_idxs(
                     global_input_tokens,
                     self.num_global_tokens_per_local_expert.ravel(),
@@ -711,7 +935,13 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         """
         # Unpermutation 2: Unsort tokens by local expert.
         if self.num_local_experts > 1:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 714, self.num_local_experts: {self.num_local_experts}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 714, hidden_states: {hidden_states.shape}")
             if self.drop_and_pad:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 718, self.drop_and_pad: {self.drop_and_pad}")
                 hidden_states = (
                     hidden_states.view(
                         self.num_local_experts,
@@ -723,24 +953,97 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
                     .contiguous()
                     .flatten(start_dim=0, end_dim=2)
                 )
+                if hidden_states is not None:
+                    if is_debug_enabled():
+                        debug_log(logger, logging.INFO,f"in token_dispatcher line 730, hidden_states: {hidden_states.shape}")
+                    if is_debug_enabled():
+                        debug_log(logger, logging.INFO,f"in token_dispatcher line 730, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+                    if is_debug_enabled():
+                        debug_log(logger, logging.INFO,f"in token_dispatcher line 730, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+                    if is_debug_enabled():
+                        debug_log(logger, logging.INFO,f"in token_dispatcher line 730, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+                    if is_debug_enabled():
+
+                        if torch.isnan(hidden_states).any():
+
+                            raise ValueError(f"hidden_states contains NaN values at line 730. Shape: {hidden_states.shape}")
+                    if is_debug_enabled():
+                        if torch.isinf(hidden_states).any():
+                            raise ValueError(f"hidden_states contains inf values at line 730. Shape: {hidden_states.shape}")
+                    if is_debug_enabled():
+
+                        if torch.isneginf(hidden_states).any():
+
+                            raise ValueError(f"hidden_states contains -inf values at line 730. Shape: {hidden_states.shape}")
+                else:
+                    if is_debug_enabled():
+                        debug_log(logger, logging.INFO,f"in token_dispatcher line 730, hidden_states is None")
             else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 737, self.drop_and_pad: {self.drop_and_pad}")
                 hidden_states, _ = sort_chunks_by_idxs(
                     hidden_states,
                     self.num_global_tokens_per_local_expert.T.ravel(),
                     self.restore_output_by_local_experts,
                     fused=self.config.moe_permute_fusion,
                 )
+                # if hidden_states is not None:
+                #     logging.info(f"in token_dispatcher line 745, hidden_states: {hidden_states.shape}")
+                #     logging.info(f"in token_dispatcher line 745, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+                #     logging.info(f"in token_dispatcher line 745, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+                #     logging.info(f"in token_dispatcher line 745, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+                #     if torch.isnan(hidden_states).any():
+                if is_debug_enabled():
+                    if torch.isnan(hidden_states).any():
+                        raise ValueError(f"hidden_states contains NaN values at line 745. Shape: {hidden_states.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(hidden_states).any():
+                        raise ValueError(f"hidden_states contains inf values at line 745. Shape: {hidden_states.shape}")
+                if is_debug_enabled():
+                    if torch.isneginf(hidden_states).any():
+                        raise ValueError(f"hidden_states contains -inf values at line 745. Shape: {hidden_states.shape}")
+                # else:
+                #     logging.info(f"in token_dispatcher line 745, hidden_states is None")
 
         if self.tp_size > 1:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 753, self.tp_size: {self.tp_size}")
             if self.output_splits_tp is None:
                 input_split_sizes = None
             else:
                 input_split_sizes = self.output_splits_tp.tolist()
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 759, input_split_sizes: {input_split_sizes}")
             hidden_states = reduce_scatter_to_sequence_parallel_region(
                 hidden_states.to(self.probs.dtype),
                 group=self.tp_group,
                 input_split_sizes=input_split_sizes,
             ).to(hidden_states.dtype)
+            if hidden_states is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 764, hidden_states: {hidden_states.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 764, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 764, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 764, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(hidden_states).any():
+
+                        raise ValueError(f"hidden_states contains NaN values at line 764. Shape: {hidden_states.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(hidden_states).any():
+                        raise ValueError(f"hidden_states contains inf values at line 764. Shape: {hidden_states.shape}")
+                if is_debug_enabled():
+
+                    if torch.isneginf(hidden_states).any():
+
+                        raise ValueError(f"hidden_states contains -inf values at line 764. Shape: {hidden_states.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 764, hidden_states is None")
 
         return hidden_states
 
@@ -1098,21 +1401,196 @@ class _DeepepManager(_DispatchManager):
         return routing_map, tokens_per_expert
 
     def get_permuted_hidden_states_by_experts(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 1128, hidden_states: {hidden_states.shape}")
+        if hidden_states is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1129, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1129, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1129, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(hidden_states).any():
+
+                    raise ValueError(f"hidden_states contains NaN values at line 1129. Shape: {hidden_states.shape}")
+            if is_debug_enabled():
+                if torch.isinf(hidden_states).any():
+                    raise ValueError(f"hidden_states contains inf values at line 1129. Shape: {hidden_states.shape}")
+            if is_debug_enabled():
+
+                if torch.isneginf(hidden_states).any():
+
+                    raise ValueError(f"hidden_states contains -inf values at line 1129. Shape: {hidden_states.shape}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1129, hidden_states is None")
         if is_experimental_enabled() and self.permute_fusion:
             self.dispatched_routing_map, self.dispatched_probs = fused_indices_to_multihot(
                 self.dispatched_indices, self.dispatched_probs, self.num_local_experts
             )
+            if self.dispatched_routing_map is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1133, dispatched_routing_map: {self.dispatched_routing_map.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1133, dispatched_routing_map has nan: {torch.isnan(self.dispatched_routing_map).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1133, dispatched_routing_map has inf: {torch.isinf(self.dispatched_routing_map).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1133, dispatched_routing_map has -inf: {torch.isneginf(self.dispatched_routing_map).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(self.dispatched_routing_map).any():
+
+                        raise ValueError(f"dispatched_routing_map contains NaN values at line 1133. Shape: {self.dispatched_routing_map.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(self.dispatched_routing_map).any():
+                        raise ValueError(f"dispatched_routing_map contains inf values at line 1133. Shape: {self.dispatched_routing_map.shape}")
+                if is_debug_enabled():
+
+                    if torch.isneginf(self.dispatched_routing_map).any():
+
+                        raise ValueError(f"dispatched_routing_map contains -inf values at line 1133. Shape: {self.dispatched_routing_map.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1133, dispatched_routing_map is None")
+            if self.dispatched_probs is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1137, dispatched_probs: {self.dispatched_probs.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1137, dispatched_probs has nan: {torch.isnan(self.dispatched_probs).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1137, dispatched_probs has inf: {torch.isinf(self.dispatched_probs).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1137, dispatched_probs has -inf: {torch.isneginf(self.dispatched_probs).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(self.dispatched_probs).any():
+
+                        raise ValueError(f"dispatched_probs contains NaN values at line 1137. Shape: {self.dispatched_probs.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(self.dispatched_probs).any():
+                        raise ValueError(f"dispatched_probs contains inf values at line 1137. Shape: {self.dispatched_probs.shape}")
+                if is_debug_enabled():
+
+                    if torch.isneginf(self.dispatched_probs).any():
+
+                        raise ValueError(f"dispatched_probs contains -inf values at line 1137. Shape: {self.dispatched_probs.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1137, dispatched_probs is None")
         else:
             self.dispatched_routing_map, self.dispatched_probs = self._indices_to_multihot(
                 self.dispatched_indices, self.dispatched_probs
             )
+            if self.dispatched_routing_map is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1158, dispatched_routing_map: {self.dispatched_routing_map.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1158, dispatched_routing_map has nan: {torch.isnan(self.dispatched_routing_map).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1158, dispatched_routing_map has inf: {torch.isinf(self.dispatched_routing_map).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1158, dispatched_routing_map has -inf: {torch.isneginf(self.dispatched_routing_map).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(self.dispatched_routing_map).any():
+
+                        raise ValueError(f"dispatched_routing_map contains NaN values at line 1158. Shape: {self.dispatched_routing_map.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(self.dispatched_routing_map).any():
+                        raise ValueError(f"dispatched_routing_map contains inf values at line 1158. Shape: {self.dispatched_routing_map.shape}")
+                if is_debug_enabled():
+
+                    if torch.isneginf(self.dispatched_routing_map).any():
+
+                        raise ValueError(f"dispatched_routing_map contains -inf values at line 1158. Shape: {self.dispatched_routing_map.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1158, dispatched_routing_map is None")
+            if self.dispatched_probs is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1162, dispatched_probs: {self.dispatched_probs.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1162, dispatched_probs has nan: {torch.isnan(self.dispatched_probs).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1162, dispatched_probs has inf: {torch.isinf(self.dispatched_probs).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1162, dispatched_probs has -inf: {torch.isneginf(self.dispatched_probs).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(self.dispatched_probs).any():
+
+                        raise ValueError(f"dispatched_probs contains NaN values at line 1162. Shape: {self.dispatched_probs.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(self.dispatched_probs).any():
+                        raise ValueError(f"dispatched_probs contains inf values at line 1162. Shape: {self.dispatched_probs.shape}")
+                if is_debug_enabled():
+
+                    if torch.isneginf(self.dispatched_probs).any():
+
+                        raise ValueError(f"dispatched_probs contains -inf values at line 1162. Shape: {self.dispatched_probs.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1162, dispatched_probs is None")
         if self.config.moe_router_padding_for_fp8:
             self.dispatched_routing_map, self.tokens_per_expert = self._pad_routing_map(
                 self.dispatched_routing_map, self.tokens_per_expert
             )
+            if self.dispatched_routing_map is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1175, dispatched_routing_map: {self.dispatched_routing_map.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1175, dispatched_routing_map has nan: {torch.isnan(self.dispatched_routing_map).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1175, dispatched_routing_map has inf: {torch.isinf(self.dispatched_routing_map).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1175, dispatched_routing_map has -inf: {torch.isneginf(self.dispatched_routing_map).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(self.dispatched_routing_map).any():
+
+                        raise ValueError(f"dispatched_routing_map contains NaN values at line 1175. Shape: {self.dispatched_routing_map.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(self.dispatched_routing_map).any():
+                        raise ValueError(f"dispatched_routing_map contains inf values at line 1175. Shape: {self.dispatched_routing_map.shape}")
+                if is_debug_enabled():
+
+                    if torch.isneginf(self.dispatched_routing_map).any():
+
+                        raise ValueError(f"dispatched_routing_map contains -inf values at line 1175. Shape: {self.dispatched_routing_map.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1175, dispatched_routing_map is None")
+            if self.tokens_per_expert is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1179, tokens_per_expert: {self.tokens_per_expert.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1179, tokens_per_expert has nan: {torch.isnan(self.tokens_per_expert).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1179, tokens_per_expert has inf: {torch.isinf(self.tokens_per_expert).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1179, tokens_per_expert has -inf: {torch.isneginf(self.tokens_per_expert).any()}")
+                if is_debug_enabled():
+
+                    if torch.isnan(self.tokens_per_expert).any():
+
+                        raise ValueError(f"tokens_per_expert contains NaN values at line 1179. Shape: {self.tokens_per_expert.shape}")
+                if is_debug_enabled():
+                    if torch.isinf(self.tokens_per_expert).any():
+                        raise ValueError(f"tokens_per_expert contains inf values at line 1179. Shape: {self.tokens_per_expert.shape}")
+                if is_debug_enabled():
+
+                    if torch.isneginf(self.tokens_per_expert).any():
+
+                        raise ValueError(f"tokens_per_expert contains -inf values at line 1179. Shape: {self.tokens_per_expert.shape}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO,f"in token_dispatcher line 1179, tokens_per_expert is None")
 
         self.hidden_shape_before_permute = hidden_states.shape
-        assert self.dispatched_probs.dtype == torch.float32, "DeepEP only supports float32 probs"
+        debug_assert(self.dispatched_probs.dtype == torch.float32, "DeepEP only supports float32 probs")
         hidden_states, permuted_probs, self.reversed_mapping_for_combine = permute(
             hidden_states,
             self.dispatched_routing_map,
@@ -1161,13 +1639,15 @@ class MoEFlexTokenDispatcher(MoETokenDispatcher):
 
         self.num_local_experts = num_local_experts
         self.local_expert_indices = local_expert_indices
-        assert self.tp_size * self.ep_size > 1, "Flex token dispatcher requires TPxEP > 1"
-        assert (
-            self.config.moe_enable_deepep
-        ), "DeepEP is not enabled. Please set --moe-enable-deepep to use DeepEP backend."
-        assert (
-            self.config.moe_pad_expert_input_to_capacity is False
-        ), "Flex token dispatcher does not support --moe-pad-expert-input-to-capacity"
+        debug_assert(self.tp_size * self.ep_size > 1, "Flex token dispatcher requires TPxEP > 1")
+        debug_assert(
+            self.config.moe_enable_deepep,
+            "DeepEP is not enabled. Please set --moe-enable-deepep to use DeepEP backend."
+        )
+        debug_assert(
+            self.config.moe_pad_expert_input_to_capacity is False,
+            "Flex token dispatcher does not support --moe-pad-expert-input-to-capacity"
+        )
         self._comm_manager = _DeepepManager(
             group=self.tp_ep_group,
             num_local_experts=self.num_local_experts,
@@ -1226,12 +1706,93 @@ class MoEFlexTokenDispatcher(MoETokenDispatcher):
             A tuple of reshaped hidden states and token probabilities.
         """
         self.hidden_shape = hidden_states.shape
+        if hidden_states is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1443, hidden_states: {hidden_states.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1443, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1443, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1443, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(hidden_states).any():
+
+                    raise ValueError(f"hidden_states contains NaN values at line 1443. Shape: {hidden_states.shape}")
+            if is_debug_enabled():
+                if torch.isinf(hidden_states).any():
+                    raise ValueError(f"hidden_states contains inf values at line 1443. Shape: {hidden_states.shape}")
+            if is_debug_enabled():
+
+                if torch.isneginf(hidden_states).any():
+
+                    raise ValueError(f"hidden_states contains -inf values at line 1443. Shape: {hidden_states.shape}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1443, hidden_states is None")
         hidden_states = hidden_states.view(-1, self.hidden_shape[-1])
 
         # Initialize metadata
         routing_map, probs = self._initialize_metadata(routing_map, probs)
+        if routing_map is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, routing_map: {routing_map.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, routing_map has nan: {torch.isnan(routing_map).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, routing_map has inf: {torch.isinf(routing_map).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, routing_map has -inf: {torch.isneginf(routing_map).any()}")
+            if is_debug_enabled():
 
+                if torch.isnan(routing_map).any():
+
+                    raise ValueError(f"routing_map contains NaN values at line 1450. Shape: {routing_map.shape}")
+            if is_debug_enabled():
+                if torch.isinf(routing_map).any():
+                    raise ValueError(f"routing_map contains inf values at line 1450. Shape: {routing_map.shape}")
         self._comm_manager.setup_metadata(routing_map, probs)
+        if routing_map is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, routing_map has nan: {torch.isnan(routing_map).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, routing_map has inf: {torch.isinf(routing_map).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, routing_map has -inf: {torch.isneginf(routing_map).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(routing_map).any():
+
+                    raise ValueError(f"routing_map contains NaN values at line 1450. Shape: {routing_map.shape}")
+            if is_debug_enabled():
+                if torch.isinf(routing_map).any():
+                    raise ValueError(f"routing_map contains inf values at line 1450. Shape: {routing_map.shape}")
+        if hidden_states is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, hidden_states: {hidden_states.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(hidden_states).any():
+
+                    raise ValueError(f"hidden_states contains NaN values at line 1450. Shape: {hidden_states.shape}")
+            if is_debug_enabled():
+                if torch.isinf(hidden_states).any():
+                    raise ValueError(f"hidden_states contains inf values at line 1450. Shape: {hidden_states.shape}")
+            if is_debug_enabled():
+
+                if torch.isneginf(hidden_states).any():
+
+                    raise ValueError(f"hidden_states contains -inf values at line 1450. Shape: {hidden_states.shape}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1450, hidden_states is None")
         return hidden_states, self._comm_manager.token_probs
 
     def token_dispatch(
@@ -1276,6 +1837,56 @@ class MoEFlexTokenDispatcher(MoETokenDispatcher):
         Returns:
             A tuple of permuted tokens, token counts per expert, and permuted probabilities.
         """
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in token_dispatcher line 1306, hidden_states: {hidden_states.shape}")
+        if hidden_states is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1308, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1308, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1308, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(hidden_states).any():
+
+                    raise ValueError(f"hidden_states contains NaN values at line 1308. Shape: {hidden_states.shape}")
+            if is_debug_enabled():
+                if torch.isinf(hidden_states).any():
+                    raise ValueError(f"hidden_states contains inf values at line 1308. Shape: {hidden_states.shape}")
+            if is_debug_enabled():
+
+                if torch.isneginf(hidden_states).any():
+
+                    raise ValueError(f"hidden_states contains -inf values at line 1308. Shape: {hidden_states.shape}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1308, hidden_states is None")
+        if probs is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1310, probs: {probs.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1310, probs has nan: {torch.isnan(probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1310, probs has inf: {torch.isinf(probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1310, probs has -inf: {torch.isneginf(probs).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(probs).any():
+
+                    raise ValueError(f"probs contains NaN values at line 1310. Shape: {probs.shape}")
+            if is_debug_enabled():
+                if torch.isinf(probs).any():
+                    raise ValueError(f"probs contains inf values at line 1310. Shape: {probs.shape}")
+            if is_debug_enabled():
+
+                if torch.isneginf(probs).any():
+
+                    raise ValueError(f"probs contains -inf values at line 1310. Shape: {probs.shape}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in token_dispatcher line 1310, probs is None")
         global_input_tokens, permuted_probs = (
             self._comm_manager.get_permuted_hidden_states_by_experts(hidden_states)
         )

@@ -6,7 +6,8 @@ from typing import Callable, Iterator, List, Optional, Union
 
 import torch
 from torch.autograd.variable import Variable
-
+import logging
+from megatron.core.debug_utils import debug_log, is_debug_enabled, debug_assert
 from megatron.core import parallel_state
 from megatron.core.enums import ModelType
 from megatron.core.pipeline_parallel.p2p_communication import P2PCommunicator
@@ -36,6 +37,7 @@ from .combined_1f1b import (
 # Types
 Shape = Union[List[int], torch.Size]
 
+logger = logging.getLogger(__name__)
 
 def get_forward_backward_func():
     """Retrieves the appropriate forward_backward function given the
@@ -232,6 +234,8 @@ def forward_step_calc_loss(
     num_tokens = torch.tensor(0, dtype=torch.int)
     if is_last_stage:
         if not collect_non_loss_data:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"schedules 235: output_tensor: {output_tensor.shape}, if has nan: {torch.isnan(output_tensor).any()}")
             outputs = loss_func(output_tensor)
             if len(outputs) == 3:
                 output_tensor, num_tokens, loss_reduced = outputs
@@ -302,6 +306,7 @@ def forward_step(
     current_microbatch=None,
     vp_stage=None,
     is_last_stage=True,
+    rank=None,
 ):
     """Forward step for passed-in model.
 
@@ -392,7 +397,12 @@ def forward_step(
 
     set_input_tensor = get_attr_wrapped_model(model, "set_input_tensor")
     set_input_tensor(input_tensor)
-
+    if input_tensor[0] is not None:
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO, f"schedules 397: input_tensor has nan: {torch.isnan(input_tensor[0]).any()}")
+    else:
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO, f"schedules 397: input_tensor is None")
     if config.enable_autocast:
         context_manager = torch.autocast("cuda", dtype=config.autocast_dtype)
     else:
@@ -400,10 +410,14 @@ def forward_step(
     with context_manager:
         if checkpoint_activations_microbatch is None:
             output_tensor, loss_func = forward_step_func(data_iterator, model)
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"schedules 405: output_tensor has nan: {torch.isnan(output_tensor).any()}")
         else:
             output_tensor, loss_func = forward_step_func(
                 data_iterator, model, checkpoint_activations_microbatch
             )
+    if is_debug_enabled():
+        debug_log(logger, logging.INFO, f"schedules 409: output_tensor has nan: {torch.isnan(output_tensor).any()}")
     output_tensor, num_tokens = forward_step_calc_loss(
         model,
         output_tensor,
@@ -1978,7 +1992,8 @@ def forward_backward_pipelining_without_interleaving(
 
     config = get_model_config(model)
     if config.overlap_p2p_comm:
-        raise ValueError(
+            if is_debug_enabled():
+                raise ValueError(
             "Non-interleaved pipeline parallelism does not support overlapping p2p communication"
         )
 
@@ -2029,7 +2044,8 @@ def forward_backward_pipelining_without_interleaving(
         tp_group = pg_collection.tp
         cp_group = pg_collection.cp
     else:
-        raise ValueError(
+            if is_debug_enabled():
+                raise ValueError(
             "Invalid combination of p2p_communicator, pg_collection "
             "provide none or provide all the process groups"
         )
@@ -2146,6 +2162,7 @@ def forward_backward_pipelining_without_interleaving(
             is_first_microbatch=check_first_val_step(first_val_step, forward_only, i == 0),
             current_microbatch=i,
             is_last_stage=is_pp_last_stage(p2p_communicator.pp_group),
+            rank=rank,
         )
         p2p_communicator.send_forward(output_tensor, is_pp_last_stage(p2p_communicator.pp_group))
         total_num_tokens += num_tokens

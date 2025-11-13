@@ -44,6 +44,7 @@ from megatron.core.utils import (
 from megatron.legacy.model.module import param_is_not_shared
 
 
+
 def calc_params_l2_norm(model, force_create_fp32_copy=False):
     """Calculate l2 norm of parameters"""
     args = get_args()

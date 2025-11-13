@@ -4,8 +4,9 @@ import math
 from typing import List, Optional, Union
 
 import torch
-
+import logging
 from megatron.core import parallel_state
+from megatron.core.debug_utils import debug_log, is_debug_enabled, debug_assert
 from megatron.core.process_groups_config import ProcessGroupCollection
 
 try:
@@ -30,6 +31,8 @@ except ImportError:
 
 # MOE logging
 _MOE_LAYER_WISE_LOGGING_TRACKER = {}
+
+logger = logging.getLogger(__name__)
 
 
 def switch_load_balancing_loss_func(
@@ -245,26 +248,187 @@ def permute(
                                        in each column.
     """
     if fused and probs is None:
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, tokens: {tokens.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, tokens has nan: {torch.isnan(tokens).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, tokens has inf: {torch.isinf(tokens).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, tokens has -inf: {torch.isneginf(tokens).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(tokens).any():
+
+                raise ValueError(f"tokens contains NaN values at line 248. Shape: {tokens.shape}")
+            if torch.isinf(tokens).any():
+                raise ValueError(f"tokens contains inf values at line 248. Shape: {tokens.shape}")
+            if torch.isneginf(tokens).any():
+                raise ValueError(f"tokens contains -inf values at line 248. Shape: {tokens.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, routing_map: {routing_map.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, routing_map has nan: {torch.isnan(routing_map).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, routing_map has inf: {torch.isinf(routing_map).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, routing_map has -inf: {torch.isneginf(routing_map).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(routing_map).any():
+
+                raise ValueError(f"routing_map contains NaN values at line 248. Shape: {routing_map.shape}")
+            if torch.isinf(routing_map).any():
+                raise ValueError(f"routing_map contains inf values at line 248. Shape: {routing_map.shape}")
+            if torch.isneginf(routing_map).any():
+                raise ValueError(f"routing_map contains -inf values at line 248. Shape: {routing_map.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, num_out_tokens: {num_out_tokens}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, num_out_tokens has nan: {torch.isnan(num_out_tokens).any()}")
+        
         if not HAVE_TE or fused_permute is None:
-            raise ValueError("fused_permute is not available. Please install TE >= 2.1.0.")
+            if is_debug_enabled():
+                raise ValueError("fused_permute is not available. Please install TE >= 2.1.0.")
         permuted_input, sorted_indices = fused_permute(
             tokens, routing_map, num_out_tokens=num_out_tokens
         )
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, permuted_input: {permuted_input.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, permuted_input has nan: {torch.isnan(permuted_input).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, permuted_input has inf: {torch.isinf(permuted_input).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, permuted_input has -inf: {torch.isneginf(permuted_input).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(permuted_input).any():
+
+                raise ValueError(f"permuted_input contains NaN values at line 248. Shape: {permuted_input.shape}")
+            if torch.isinf(permuted_input).any():
+                raise ValueError(f"permuted_input contains inf values at line 248. Shape: {permuted_input.shape}")
+            if torch.isneginf(permuted_input).any():
+                raise ValueError(f"permuted_input contains -inf values at line 248. Shape: {permuted_input.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, sorted_indices: {sorted_indices.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, sorted_indices has nan: {torch.isnan(sorted_indices).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, sorted_indices has inf: {torch.isinf(sorted_indices).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 248, sorted_indices has -inf: {torch.isneginf(sorted_indices).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(sorted_indices).any():
+
+                raise ValueError(f"sorted_indices contains NaN values at line 248. Shape: {sorted_indices.shape}")
+            if torch.isinf(sorted_indices).any():
+                raise ValueError(f"sorted_indices contains inf values at line 248. Shape: {sorted_indices.shape}")
+            if torch.isneginf(sorted_indices).any():
+                raise ValueError(f"sorted_indices contains -inf values at line 248. Shape: {sorted_indices.shape}")
         return permuted_input, None, sorted_indices
 
     if fused and probs is not None:
         if not HAVE_TE or fused_permute_with_probs is None:
-            raise ValueError(
+            if is_debug_enabled():
+                raise ValueError(
                 "fused_permute_with_probs is not available. Please install TE >= 2.1.0."
             )
-        return fused_permute_with_probs(tokens, probs, routing_map, num_out_tokens=num_out_tokens)
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, tokens: {tokens.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, tokens has nan: {torch.isnan(tokens).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, tokens has inf: {torch.isinf(tokens).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, tokens has -inf: {torch.isneginf(tokens).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(tokens).any():
+
+                raise ValueError(f"tokens contains NaN values at line 304. Shape: {tokens.shape}")
+            if torch.isinf(tokens).any():
+                raise ValueError(f"tokens contains inf values at line 304. Shape: {tokens.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, probs: {probs.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, probs has nan: {torch.isnan(probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, probs has inf: {torch.isinf(probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, probs has -inf: {torch.isneginf(probs).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(probs).any():
+
+                raise ValueError(f"probs contains NaN values at line 304. Shape: {probs.shape}")
+            if torch.isinf(probs).any():
+                raise ValueError(f"probs contains inf values at line 304. Shape: {probs.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, routing_map: {routing_map.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, routing_map has nan: {torch.isnan(routing_map).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, routing_map has inf: {torch.isinf(routing_map).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, routing_map has -inf: {torch.isneginf(routing_map).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(routing_map).any():
+
+                raise ValueError(f"routing_map contains NaN values at line 304. Shape: {routing_map.shape}")
+            if torch.isinf(routing_map).any():
+                raise ValueError(f"routing_map contains inf values at line 304. Shape: {routing_map.shape}")
+            if torch.isneginf(routing_map).any():
+                raise ValueError(f"routing_map contains -inf values at line 304. Shape: {routing_map.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, num_out_tokens: {num_out_tokens}")
+        results = fused_permute_with_probs(tokens, probs, routing_map, num_out_tokens=num_out_tokens)
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, results: {results[0].shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, results has nan: {torch.isnan(results[0]).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, results has inf: {torch.isinf(results[0]).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, results has -inf: {torch.isneginf(results[0]).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(results[0]).any():
+
+                raise ValueError(f"results[0] contains NaN values at line 304. Shape: {results[0].shape}")
+            if torch.isinf(results[0]).any():
+                raise ValueError(f"results[0] contains inf values at line 304. Shape: {results[0].shape}")
+            if torch.isneginf(results[0]).any():
+                raise ValueError(f"results[0] contains -inf values at line 304. Shape: {results[0].shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, results: {results[1].shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, results has nan: {torch.isnan(results[1]).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, results has inf: {torch.isinf(results[1]).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 304, results has -inf: {torch.isneginf(results[1]).any()}")
+        if is_debug_enabled():
+            if torch.isnan(results[1]).any():
+                raise ValueError(f"results[1] contains NaN values at line 304. Shape: {results[1].shape}")
+        if is_debug_enabled():
+            if torch.isinf(results[1]).any():
+                raise ValueError(f"results[1] contains inf values at line 304. Shape: {results[1].shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(results[1]).any():
+
+                raise ValueError(f"results[1] contains -inf values at line 304. Shape: {results[1].shape}")
+        return results
 
     num_tokens, hidden = tokens.shape
     num_experts = routing_map.shape[1]
     permuted_probs = None
     if drop_and_pad and not (num_out_tokens is None):
         capacity = num_out_tokens // num_experts
-        assert not routing_map.requires_grad
+        debug_assert(not routing_map.requires_grad)
         # mask [num_tokens, num_experts] -> [num_experts, num_tokens]
         routing_map = routing_map.to(dtype=torch.int8).T.contiguous()
         # use argsort to put indices of all non-zeros in the beginning of list
@@ -284,6 +448,27 @@ def permute(
             indices_1D = (indices_dim0 * num_tokens + indices_dim1).view(-1)
             # get probs from indices
             permuted_probs = probs_T_1D.index_select(0, indices_1D)
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe_utils line 351, permuted_probs: {permuted_probs.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe_utils line 351, permuted_probs has nan: {torch.isnan(permuted_probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe_utils line 351, permuted_probs has inf: {torch.isinf(permuted_probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe_utils line 351, permuted_probs has -inf: {torch.isneginf(permuted_probs).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(permuted_probs).any():
+
+                    raise ValueError(f"permuted_probs contains NaN values at line 351. Shape: {permuted_probs.shape}")
+            if is_debug_enabled():
+                if torch.isinf(permuted_probs).any():
+                    raise ValueError(f"permuted_probs contains inf values at line 351. Shape: {permuted_probs.shape}")
+            if is_debug_enabled():
+
+                if torch.isneginf(permuted_probs).any():
+
+                    raise ValueError(f"permuted_probs contains -inf values at line 351. Shape: {permuted_probs.shape}")
     else:
         # mask [num_tokens, num_experts] -> [num_experts, num_tokens]
         routing_map = routing_map.bool().T.contiguous()
@@ -293,13 +478,67 @@ def permute(
             torch.arange(num_tokens, device=routing_map.device).unsqueeze(0).expand(num_experts, -1)
         )
         sorted_indices = token_indices.masked_select(routing_map)
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 369, sorted_indices: {sorted_indices.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 369, sorted_indices has nan: {torch.isnan(sorted_indices).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 369, sorted_indices has inf: {torch.isinf(sorted_indices).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 369, sorted_indices has -inf: {torch.isneginf(sorted_indices).any()}")
+        if is_debug_enabled():
 
+            if torch.isnan(sorted_indices).any():
+
+                raise ValueError(f"sorted_indices contains NaN values at line 369. Shape: {sorted_indices.shape}")
+        if is_debug_enabled():
+            if torch.isinf(sorted_indices).any():
+                raise ValueError(f"sorted_indices contains inf values at line 369. Shape: {sorted_indices.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(sorted_indices).any():
+
+                raise ValueError(f"sorted_indices contains -inf values at line 369. Shape: {sorted_indices.shape}")
         if probs is not None:
             permuted_probs = probs.T.contiguous().masked_select(routing_map)
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe_utils line 379, permuted_probs: {permuted_probs.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe_utils line 379, permuted_probs has nan: {torch.isnan(permuted_probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe_utils line 379, permuted_probs has inf: {torch.isinf(permuted_probs).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO,f"in moe_utils line 379, permuted_probs has -inf: {torch.isneginf(permuted_probs).any()}")
+            if is_debug_enabled():
+
+                if torch.isnan(permuted_probs).any():
+
+                    raise ValueError(f"permuted_probs contains NaN values at line 379. Shape: {permuted_probs.shape}")
+            if is_debug_enabled():
+                if torch.isinf(permuted_probs).any():
+                    raise ValueError(f"permuted_probs contains inf values at line 379. Shape: {permuted_probs.shape}")
+            if is_debug_enabled():
+
+                if torch.isneginf(permuted_probs).any():
+
+                    raise ValueError(f"permuted_probs contains -inf values at line 379. Shape: {permuted_probs.shape}")
 
     # use the mapping to permute the tokens
     permuted_input = tokens.index_select(0, sorted_indices)
 
+    debug_log(logger, logging.INFO, f"in moe_utils line 389, permuted_input: {permuted_input.shape}")
+    debug_log(logger, logging.INFO, f"in moe_utils line 389, permuted_input has nan: {torch.isnan(permuted_input).any()}")
+    debug_log(logger, logging.INFO, f"in moe_utils line 389, permuted_input has inf: {torch.isinf(permuted_input).any()}")
+    debug_log(logger, logging.INFO, f"in moe_utils line 389, permuted_input has -inf: {torch.isneginf(permuted_input).any()}")
+    if is_debug_enabled():
+
+        if torch.isnan(permuted_input).any():
+
+            raise ValueError(f"permuted_input contains NaN values at line 389. Shape: {permuted_input.shape}")
+    if is_debug_enabled():
+        if torch.isinf(permuted_input).any():
+            raise ValueError(f"permuted_input contains inf values at line 389. Shape: {permuted_input.shape}")
+    
     return permuted_input, permuted_probs, sorted_indices
 
 
@@ -338,7 +577,8 @@ def unpermute(
     """
     if fused:
         if not HAVE_TE or fused_unpermute is None:
-            raise ValueError("fused_unpermute is not available. Please install TE >= 2.1.0.")
+            if is_debug_enabled():
+                raise ValueError("fused_unpermute is not available. Please install TE >= 2.1.0.")
         return fused_unpermute(
             permuted_tokens, sorted_indices, merging_probs=probs, restore_shape=restore_shape
         )
@@ -347,7 +587,7 @@ def unpermute(
     input_dtype = permuted_tokens.dtype
 
     if probs is not None:
-        assert routing_map is not None, "Mask must be provided to permute the probs."
+        debug_assert(routing_map is not None, "Mask must be provided to permute the probs.")
         if drop_and_pad:
             num_experts = routing_map.size(1)
             num_permuted_tokens = sorted_indices.size(0)
@@ -391,26 +631,300 @@ def sort_chunks_by_idxs(
     """Split and sort the input tensor based on the split_sizes and sorted indices."""
     if fused and probs is None:
         if not HAVE_TE or fused_sort_chunks_by_index is None:
-            raise ValueError(
+            if is_debug_enabled():
+                raise ValueError(
                 "fused_sort_chunks_by_index is not available. Please install TE >= 2.1.0."
             )
-        return fused_sort_chunks_by_index(input, split_sizes, sorted_idxs), None
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, input: {input.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, input has nan: {torch.isnan(input).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, input has inf: {torch.isinf(input).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, input has -inf: {torch.isneginf(input).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(input).any():
+
+                raise ValueError(f"input contains NaN values at line 397. Shape: {input.shape}")
+        if is_debug_enabled():
+            if torch.isinf(input).any():
+                raise ValueError(f"input contains inf values at line 397. Shape: {input.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(input).any():
+
+                raise ValueError(f"input contains -inf values at line 397. Shape: {input.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, split_sizes: {split_sizes.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, split_sizes has nan: {torch.isnan(split_sizes).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, split_sizes has inf: {torch.isinf(split_sizes).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, split_sizes has -inf: {torch.isneginf(split_sizes).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(split_sizes).any():
+
+                raise ValueError(f"split_sizes contains NaN values at line 397. Shape: {split_sizes.shape}")            
+        if is_debug_enabled():
+            if torch.isinf(split_sizes).any():
+                raise ValueError(f"split_sizes contains inf values at line 397. Shape: {split_sizes.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(split_sizes).any():
+
+                raise ValueError(f"split_sizes contains -inf values at line 397. Shape: {split_sizes.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, sorted_idxs: {sorted_idxs.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, sorted_idxs has nan: {torch.isnan(sorted_idxs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, sorted_idxs has inf: {torch.isinf(sorted_idxs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 397, sorted_idxs has -inf: {torch.isneginf(sorted_idxs).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(sorted_idxs).any():
+
+                raise ValueError(f"sorted_idxs contains NaN values at line 397. Shape: {sorted_idxs.shape}")
+        if is_debug_enabled():
+            if torch.isinf(sorted_idxs).any():
+                raise ValueError(f"sorted_idxs contains inf values at line 397. Shape: {sorted_idxs.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(sorted_idxs).any():
+
+                raise ValueError(f"sorted_idxs contains -inf values at line 397. Shape: {sorted_idxs.shape}")
+        results = fused_sort_chunks_by_index(input, split_sizes, sorted_idxs)
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 414, results: {results[0].shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 414, results has nan: {torch.isnan(results[0]).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 414, results has inf: {torch.isinf(results[0]).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 414, results has -inf: {torch.isneginf(results[0]).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(results[0]).any():
+
+                raise ValueError(f"results[0] contains NaN values at line 414. Shape: {results[0].shape}")
+        if is_debug_enabled():
+            if torch.isinf(results[0]).any():
+                raise ValueError(f"results[0] contains inf values at line 414. Shape: {results[0].shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(results[0]).any():
+
+                raise ValueError(f"results[0] contains -inf values at line 414. Shape: {results[0].shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 414, results: {results[1].shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 414, results has nan: {torch.isnan(results[1]).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 414, results has inf: {torch.isinf(results[1]).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 414, results has -inf: {torch.isneginf(results[1]).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(results[1]).any():
+
+                raise ValueError(f"results[1] contains NaN values at line 414. Shape: {results[1].shape}")
+        if is_debug_enabled():
+            if torch.isinf(results[1]).any():
+                raise ValueError(f"results[1] contains inf values at line 414. Shape: {results[1].shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(results[1]).any():
+
+                raise ValueError(f"results[1] contains -inf values at line 414. Shape: {results[1].shape}")
+        return results, None
 
     if fused and probs is not None:
         if not HAVE_TE or fused_sort_chunks_by_index_with_probs is None:
-            raise ValueError(
+            if is_debug_enabled():
+                raise ValueError(
                 "fused_sort_chunks_by_index_with_probs is not available. "
                 "Please install TE >= 2.1.0."
             )
-        return fused_sort_chunks_by_index_with_probs(input, probs, split_sizes, sorted_idxs)
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, input: {input.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, input has nan: {torch.isnan(input).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, input has inf: {torch.isinf(input).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, input has -inf: {torch.isneginf(input).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(input).any():
+
+                raise ValueError(f"input contains NaN values at line 426. Shape: {input.shape}")
+        if is_debug_enabled():
+            if torch.isinf(input).any():
+                raise ValueError(f"input contains inf values at line 426. Shape: {input.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(input).any():
+
+                raise ValueError(f"input contains -inf values at line 426. Shape: {input.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, probs: {probs.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, probs has nan: {torch.isnan(probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, probs has inf: {torch.isinf(probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, probs has -inf: {torch.isneginf(probs).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(probs).any():
+
+                raise ValueError(f"probs contains NaN values at line 426. Shape: {probs.shape} ")
+        if is_debug_enabled():
+            if torch.isinf(probs).any():
+                raise ValueError(f"probs contains inf values at line 426. Shape: {probs.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(probs).any():
+
+                raise ValueError(f"probs contains -inf values at line 426. Shape: {probs.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, split_sizes: {split_sizes.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, split_sizes has nan: {torch.isnan(split_sizes).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, split_sizes has inf: {torch.isinf(split_sizes).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, split_sizes has -inf: {torch.isneginf(split_sizes).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(split_sizes).any():
+
+                raise ValueError(f"split_sizes contains NaN values at line 426. Shape: {split_sizes.shape}")
+        if is_debug_enabled():
+            if torch.isinf(split_sizes).any():
+                raise ValueError(f"split_sizes contains inf values at line 426. Shape: {split_sizes.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(split_sizes).any():
+
+                raise ValueError(f"split_sizes contains -inf values at line 426. Shape: {split_sizes.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, sorted_idxs: {sorted_idxs.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, sorted_idxs has nan: {torch.isnan(sorted_idxs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, sorted_idxs has inf: {torch.isinf(sorted_idxs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 426, sorted_idxs has -inf: {torch.isneginf(sorted_idxs).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(sorted_idxs).any():
+
+                raise ValueError(f"sorted_idxs contains NaN values at line 426. Shape: {sorted_idxs.shape}")
+        if is_debug_enabled():
+            if torch.isinf(sorted_idxs).any():
+                raise ValueError(f"sorted_idxs contains inf values at line 426. Shape: {sorted_idxs.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(sorted_idxs).any():
+
+                raise ValueError(f"sorted_idxs contains -inf values at line 426. Shape: {sorted_idxs.shape}")
+        results = fused_sort_chunks_by_index_with_probs(input, probs, split_sizes, sorted_idxs)
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 437, results: {results[0].shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 437, results has nan: {torch.isnan(results[0]).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(results[0]).any():
+
+                raise ValueError(f"results[0] contains NaN values at line 437. Shape: {results[0].shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 437, results has inf: {torch.isinf(results[0]).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 437, results has -inf: {torch.isneginf(results[0]).any()}")
+        if is_debug_enabled():
+
+            if torch.isinf(results[0]).any():
+
+                raise ValueError(f"results[0] contains inf values at line 437. Shape: {results[0].shape}")
+        if is_debug_enabled():
+            if torch.isneginf(results[0]).any():
+                raise ValueError(f"results[0] contains -inf values at line 437. Shape: {results[0].shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 437, results: {results[1].shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 437, results has nan: {torch.isnan(results[1]).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 437, results has inf: {torch.isinf(results[1]).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 437, results has -inf: {torch.isneginf(results[1]).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(results[1]).any():
+
+                raise ValueError(f"results[1] contains NaN values at line 437. Shape: {results[1].shape}")
+        if is_debug_enabled():
+            if torch.isinf(results[1]).any():
+                raise ValueError(f"results[1] contains inf values at line 437. Shape: {results[1].shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(results[1]).any():
+
+                raise ValueError(f"results[1] contains -inf values at line 437. Shape: {results[1].shape}")
+        return results
 
     input = torch.split(input, split_sizes.tolist(), dim=0)
     output = torch.cat([input[i] for i in sorted_idxs.tolist()], dim=0)
+    debug_log(logger, logging.INFO, f"in moe_utils line 447, output: {output.shape}")
+    debug_log(logger, logging.INFO, f"in moe_utils line 447, output has nan: {torch.isnan(output).any()}")
+    debug_log(logger, logging.INFO, f"in moe_utils line 447, output has inf: {torch.isinf(output).any()}")
+    debug_log(logger, logging.INFO, f"in moe_utils line 447, output has -inf: {torch.isneginf(output).any()}")
+    if is_debug_enabled():
+
+        if torch.isnan(output).any():
+
+            raise ValueError(f"output contains NaN values at line 447. Shape: {output.shape}")
+    if is_debug_enabled():
+        if torch.isinf(output).any():
+            raise ValueError(f"output contains inf values at line 447. Shape: {output.shape}")
+    if is_debug_enabled():
+
+        if torch.isneginf(output).any():
+
+            raise ValueError(f"output contains -inf values at line 447. Shape: {output.shape}")
     if probs is not None:
         probs = torch.split(probs, split_sizes.tolist(), dim=0)
         permuted_probs = torch.cat([probs[i] for i in sorted_idxs.tolist()], dim=0)
     else:
         permuted_probs = None
+    if permuted_probs is not None:
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 456, permuted_probs: {permuted_probs.shape}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 456, permuted_probs has nan: {torch.isnan(permuted_probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 456, permuted_probs has inf: {torch.isinf(permuted_probs).any()}")
+        if is_debug_enabled():
+            debug_log(logger, logging.INFO,f"in moe_utils line 456, permuted_probs has -inf: {torch.isneginf(permuted_probs).any()}")
+        if is_debug_enabled():
+
+            if torch.isnan(permuted_probs).any():
+
+                raise ValueError(f"permuted_probs contains NaN values at line 456. Shape: {permuted_probs.shape}")
+        if is_debug_enabled():
+            if torch.isinf(permuted_probs).any():
+                raise ValueError(f"permuted_probs contains inf values at line 456. Shape: {permuted_probs.shape}")
+        if is_debug_enabled():
+
+            if torch.isneginf(permuted_probs).any():
+
+                raise ValueError(f"permuted_probs contains -inf values at line 456. Shape: {permuted_probs.shape}")
     return output, permuted_probs
 
 
@@ -536,11 +1050,12 @@ def topk_routing_with_score_function(
               indicating which experts were selected for each token. True values represent
               the selected experts.
     """
-    assert logits.dim() == 2, f"Expected 2D logits [num_tokens, num_experts], got {logits.dim()}."
+    debug_assert(logits.dim() == 2, f"Expected 2D logits [num_tokens, num_experts], got {logits.dim()}.")
     num_tokens, num_experts = logits.shape
     if fused:
         if not HAVE_TE or fused_topk_with_score_function is None:
-            raise ValueError(
+            if is_debug_enabled():
+                raise ValueError(
                 "fused_topk_with_score_function is not available. Please install TE >= 2.6.0."
             )
         return fused_topk_with_score_function(
@@ -584,7 +1099,8 @@ def topk_routing_with_score_function(
             scores, top_indices = compute_topk(scores, topk, num_groups, group_topk)
         probs = scores / (scores.sum(dim=-1, keepdim=True) + 1e-20) if topk > 1 else scores
     else:
-        raise ValueError(f"Invalid score_function: {score_function}")
+        if is_debug_enabled():
+                raise ValueError(f"Invalid score_function: {score_function}")
 
     if scaling_factor:
         probs = probs * scaling_factor
@@ -609,7 +1125,8 @@ def compute_routing_scores_for_aux_loss(
     """
     if fused:
         if not HAVE_TE or fused_compute_score_for_moe_aux_loss is None:
-            raise ValueError(
+            if is_debug_enabled():
+                raise ValueError(
                 "fused_compute_score_for_moe_aux_loss is not available. Please install TE >= 2.6.0."
             )
         return fused_compute_score_for_moe_aux_loss(
@@ -622,7 +1139,8 @@ def compute_routing_scores_for_aux_loss(
         scores = torch.sigmoid(logits)
         scores = scores / (scores.sum(dim=-1, keepdim=True) + 1e-20)
     else:
-        raise ValueError(f"Invalid score_function: {score_function}")
+        if is_debug_enabled():
+                raise ValueError(f"Invalid score_function: {score_function}")
 
     _, top_indices = torch.topk(scores, k=topk, dim=1)
     routing_map = torch.zeros_like(logits).int().scatter(1, top_indices, 1).bool()
@@ -657,7 +1175,7 @@ def apply_router_token_dropping(
             - final_probs: Routing probabilities after applying capacity constraints
             - final_map: Boolean mask after applying capacity constraints
     """
-    assert routing_probs.ndim == 2 and routing_map.ndim == 2
+    debug_assert(routing_probs.ndim == 2 and routing_map.ndim == 2)
     num_tokens, num_experts = routing_probs.shape
     # Calculate expert capacity
     expert_capacity = get_capacity(
@@ -674,7 +1192,8 @@ def apply_router_token_dropping(
         _, capacity_indices = torch.topk(routing_map.int(), k=expert_capacity, dim=0, sorted=False)
         capacity_mask = torch.zeros_like(routing_probs).scatter(0, capacity_indices, 1).bool()
     else:
-        raise ValueError(f"Invalid drop_policy: {drop_policy}")
+        if is_debug_enabled():
+                raise ValueError(f"Invalid drop_policy: {drop_policy}")
 
     # Apply capacity constraints
     if pad_to_capacity:
@@ -783,13 +1302,14 @@ def track_moe_metrics(
     if moe_layer_freq is None:
         num_moe_layers = num_layers
     elif isinstance(moe_layer_freq, int):
-        assert isinstance(num_layers, int)
+        debug_assert(isinstance(num_layers, int))
         moe_layer_pattern = [1 if (i % moe_layer_freq == 0) else 0 for i in range(num_layers)]
         num_moe_layers = sum(moe_layer_pattern)
     elif isinstance(moe_layer_freq, list):
         num_moe_layers = sum(moe_layer_freq)
     else:
-        raise ValueError(f"Invalid moe_layer_freq: {moe_layer_freq}")
+        if is_debug_enabled():
+                raise ValueError(f"Invalid moe_layer_freq: {moe_layer_freq}")
 
     if mtp_num_layers is not None:
         num_moe_layers += mtp_num_layers

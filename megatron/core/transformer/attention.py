@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import NoReturn, Optional, Tuple, Union
-
+import logging
 import torch
 from torch import Tensor
 
@@ -236,6 +236,7 @@ class Attention(MegatronModule, ABC):
             attention_mask = inputs[3]
             attn_mask_type = inputs[5]
             attn_mask_type = AttnMaskType(attn_mask_type.item())
+            # logging.info(f"in attention.py's Attention class, custom_forward, query: {query.shape}, key: {key.shape}")
             output_ = self.core_attention(
                 query,
                 key,
@@ -462,6 +463,7 @@ class Attention(MegatronModule, ABC):
             "Flash Decoding requires the flash_attn_with_kvcache kernel, "
             "available in the flash-attn package."
         )
+        # logging.info(f"in attention.py's Attention class, flash_decode, query_layer: {query_layer.shape}, key_layer: {key_layer.shape}, value_layer: {value_layer.shape}")
         q = query_layer.permute(1, 0, 2, 3)
         k = key_layer.permute(1, 0, 2, 3)
         v = value_layer.permute(1, 0, 2, 3)
@@ -662,6 +664,7 @@ class Attention(MegatronModule, ABC):
         """
         # Check if we need to skip RoPE
         # no_rope is 0-indexed array and self.layer_number is 1-indexed
+        # logging.info(f"in attention.py's Attention class, hidden_states: {hidden_states.shape}")
         no_rope = (
             self.config.no_rope_freq[self.layer_number - 1] if self.config.no_rope_freq else False
         )
@@ -755,6 +758,7 @@ class Attention(MegatronModule, ABC):
             inference_key_memory, inference_value_memory = inference_context.key_value_memory_dict[
                 self.layer_number
             ]
+            #logging.info(f"in attention.py's Attention class, in_decode_mode and self.config.flash_decode")
             output = self.flash_decode(
                 sequence_len_offset=sequence_len_offset,
                 query_layer=query,
@@ -863,6 +867,7 @@ class Attention(MegatronModule, ABC):
 
         nvtx_range_push(suffix="core_attention")
         if self.checkpoint_core_attention and self.training:
+            logging.info(f"in attention.py's Attention class, checkpointing core attention")
             core_attn_out = self._checkpointed_attention_forward(
                 query,
                 key,
@@ -874,7 +879,9 @@ class Attention(MegatronModule, ABC):
             )
         else:
             if inference_context is None or inference_context.is_static_batching():
+                # logging.info(f"in attention.py's Attention class, Static batching attention kernel")
                 # Static batching attention kernel.
+                # logging.info(f"in attention.py's Attention class, core_attention's class is {self.core_attention.__class__.__name__}")
                 core_attn_out = self.core_attention(
                     query,
                     key,
@@ -887,6 +894,7 @@ class Attention(MegatronModule, ABC):
 
             else:
                 # Dynamic batching attention kernel.
+                logging.info(f"in attention.py's Attention class, Dynamic batching attention kernel")
                 q, k, v = (query, key, value)
                 cu_query_lengths, max_seqlen_q = inference_context.cu_query_lengths()
                 cu_kv_lengths, kv_lengths, max_seqlen_k = inference_context.cu_kv_lengths()

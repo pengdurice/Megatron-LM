@@ -7,6 +7,8 @@ from typing import List, Optional, Union
 import torch
 from torch import Tensor
 
+from megatron.core.debug_utils import debug_log, is_debug_enabled, debug_assert
+
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
@@ -104,11 +106,11 @@ def get_num_layers_to_build(
         or config.num_layers_in_last_pipeline_stage is not None
     ):
 
-        assert not (
+        debug_assert(not (
             config.account_for_embedding_in_pipeline_split
             or config.account_for_loss_in_pipeline_split
         ), " \
-        Does not support standalone embedding stage and standalone loss stage with uneven pp"
+        Does not support standalone embedding stage and standalone loss stage with uneven pp")
         # Number of layers to distribute over rest of pipeline stages
         layers_to_distribute = config.num_layers
         # Number of pipeline stages left for distributing transformer layers
@@ -127,9 +129,10 @@ def get_num_layers_to_build(
         # If pp_size <= 2, we do not have any intermediate pipeline stages, and we do not
         # need to check if the left over layers are divisible by the left over stages.
         if pipeline_stages_left > 0:
-            assert (
-                layers_to_distribute % pipeline_stages_left == 0
-            ), "With uneven pipelineing the left over layers must be divisible by left over stages"
+            debug_assert(
+                layers_to_distribute % pipeline_stages_left == 0,
+                "With uneven pipelineing the left over layers must be divisible by left over stages"
+            )
             num_layers_per_pipeline_rank = layers_to_distribute // pipeline_stages_left
         else:
             num_layers_per_pipeline_rank = 0
@@ -152,9 +155,10 @@ def get_num_layers_to_build(
         if config.account_for_loss_in_pipeline_split:
             num_layers += 1
 
-        assert (
-            num_layers % config.pipeline_model_parallel_size == 0
-        ), "num_layers should be divisible by pipeline_model_parallel_size"
+        debug_assert(
+            num_layers % config.pipeline_model_parallel_size == 0,
+            "num_layers should be divisible by pipeline_model_parallel_size"
+        )
         num_layers_per_pipeline_rank = num_layers // config.pipeline_model_parallel_size
 
     vp_size = config.virtual_pipeline_model_parallel_size
@@ -171,10 +175,11 @@ def get_num_layers_to_build(
         # Stage 0: [0, 1]  [4, 5]
         # Stage 1: [2, 3]  [6, 7]
 
-        assert (
-            num_layers_per_pipeline_rank % vp_size == 0
-        ), f"num_layers_per_pipeline_rank {num_layers_per_pipeline_rank} \
+        debug_assert(
+            num_layers_per_pipeline_rank % vp_size == 0,
+            f"num_layers_per_pipeline_rank {num_layers_per_pipeline_rank} \
             should be divisible by vp_size {vp_size}"
+        )
         num_layers_per_virtual_stage = num_layers_per_pipeline_rank // vp_size
 
         num_layers_to_build = num_layers_per_virtual_stage
@@ -190,14 +195,15 @@ def get_num_layers_to_build(
     if config.account_for_embedding_in_pipeline_split:
         if is_vp_first_stage(vp_stage, vp_size) and is_first_pp_stage:
             num_layers_to_build -= 1
-            assert (
-                num_layers_to_build >= 0
-            ), f"Not enough layers in the first virtual pipeline stage"
+            debug_assert(
+                num_layers_to_build >= 0,
+                f"Not enough layers in the first virtual pipeline stage"
+            )
 
     if config.account_for_loss_in_pipeline_split:
         if is_vp_last_stage(vp_stage, vp_size) and is_last_pp_stage:
             num_layers_to_build -= 1
-            assert num_layers_to_build >= 0, f"Not enough layers in the last virtual pipeline stage"
+            debug_assert(num_layers_to_build >= 0, f"Not enough layers in the last virtual pipeline stage")
 
     return num_layers_to_build
 
@@ -314,9 +320,10 @@ class TransformerBlock(GraphableMegatronModule, MegatronModule):
                 self.offload_context if self.config.cpu_offloading else None
             )
         else:
-            assert (
-                self.config.cpu_offloading is False
-            ), "CPU Offloading is enabled when TE is not present"
+            debug_assert(
+                self.config.cpu_offloading is False,
+                "CPU Offloading is enabled when TE is not present"
+            )
 
             self.offload_context, self.group_prefetch_offload_commit_async = nullcontext(), None
             self.config._cpu_offloading_context = None
@@ -341,6 +348,7 @@ class TransformerBlock(GraphableMegatronModule, MegatronModule):
                 layer_config = self.config
 
             # Get appropriate quantization context (FP8 and FP4 are mutually exclusive)
+            print(f"layer_config: {layer_config}")
             if layer_config.fp8:
                 quantization_context = get_fp8_context(
                     layer_config, global_layer_number - 1, is_init=True
@@ -351,7 +359,7 @@ class TransformerBlock(GraphableMegatronModule, MegatronModule):
                 )
             else:
                 quantization_context = nullcontext()
-
+            print(f"quantization_context: {quantization_context}")
             with quantization_context:
                 module = build_module(
                     layer_spec,
@@ -497,7 +505,8 @@ class TransformerBlock(GraphableMegatronModule, MegatronModule):
                         hidden_states, attention_mask, context, context_mask, rotary_pos_emb
                     )
         else:
-            raise ValueError("Invalid activation recompute method.")
+            if is_debug_enabled():
+                raise ValueError("Invalid activation recompute method.")
 
         return hidden_states
 
@@ -605,6 +614,18 @@ class TransformerBlock(GraphableMegatronModule, MegatronModule):
             Union[Tensor, Tuple[Tensor, Tensor]]: The output hidden states tensor of shape
             [s, b, h], and optionally the updated context tensor if cross-attention is used.
         """
+        if hidden_states is not None:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in transformer block line 610, hidden_states: {hidden_states.shape}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in transformer block line 610, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in transformer block line 610, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in transformer block line 610, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+        else:
+            if is_debug_enabled():
+                debug_log(logger, logging.INFO, f"in transformer block line 610, hidden_states is None")
 
         inference_context = deprecate_inference_params(inference_context, inference_params)
         # Remove 'dynamic_inference_decode_only' from kwargs if present
@@ -676,6 +697,12 @@ class TransformerBlock(GraphableMegatronModule, MegatronModule):
                     packed_seq_params=packed_seq_params,
                     use_inner_quantization_context=use_inner_quantization_context,
                 )
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO, f"in transformer block line 687, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO, f"in transformer block line 687, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO, f"in transformer block line 687, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
             else:
                 for l_no, layer in enumerate(self.layers):
                     # Get appropriate inner quantization context
@@ -708,17 +735,51 @@ class TransformerBlock(GraphableMegatronModule, MegatronModule):
                             packed_seq_params=packed_seq_params,
                             sequence_len_offset=sequence_len_offset,
                         )
-
+                        if hidden_states is not None:
+                            if is_debug_enabled():
+                                debug_log(logger, logging.INFO, f"in transformer block line 723, hidden_states: {hidden_states.shape}, layer number: {l_no}")
+                            if is_debug_enabled():
+                                debug_log(logger, logging.INFO, f"in transformer block line 723, hidden_states has nan: {torch.isnan(hidden_states).any()}, layer number: {l_no}")
+                            if is_debug_enabled():
+                                debug_log(logger, logging.INFO, f"in transformer block line 723, hidden_states has inf: {torch.isinf(hidden_states).any()}, layer number: {l_no}")
+                            if is_debug_enabled():
+                                debug_log(logger, logging.INFO, f"in transformer block line 723, hidden_states has -inf: {torch.isneginf(hidden_states).any()}, layer number: {l_no}")
+                        else:
+                            if is_debug_enabled():
+                                debug_log(logger, logging.INFO, f"in transformer block line 723, hidden_states is None, layer number: {l_no}")
                     if (
                         torch.is_grad_enabled()
                         and self.config.cpu_offloading
                         and self.group_prefetch_offload_commit_async is not None
                     ):
                         hidden_states = self.group_prefetch_offload_commit_async(hidden_states)
-
+                        if hidden_states is not None:
+                            if is_debug_enabled():
+                                debug_log(logger, logging.INFO, f"in transformer block line 735, hidden_states: {hidden_states.shape}, layer number: {l_no}")
+                            if is_debug_enabled():
+                                debug_log(logger, logging.INFO, f"in transformer block line 735, hidden_states has nan: {torch.isnan(hidden_states).any()}, layer number: {l_no}")
+                            if is_debug_enabled():
+                                debug_log(logger, logging.INFO, f"in transformer block line 735, hidden_states has inf: {torch.isinf(hidden_states).any()}, layer number: {l_no}")
+                            if is_debug_enabled():
+                                debug_log(logger, logging.INFO, f"in transformer block line 735, hidden_states has -inf: {torch.isneginf(hidden_states).any()}, layer number: {l_no}")
+                        else:
+                            if is_debug_enabled():
+                                debug_log(logger, logging.INFO, f"in transformer block line 735, hidden_states is None, layer number: {l_no}")
         # Final layer norm.
         if self.final_layernorm is not None:
             hidden_states = self.final_layernorm(hidden_states)
+            if hidden_states is not None:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO, f"in transformer block line 746, hidden_states: {hidden_states.shape}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO, f"in transformer block line 746, hidden_states has nan: {torch.isnan(hidden_states).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO, f"in transformer block line 746, hidden_states has inf: {torch.isinf(hidden_states).any()}")
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO, f"in transformer block line 746, hidden_states has -inf: {torch.isneginf(hidden_states).any()}")
+            else:
+                if is_debug_enabled():
+                    debug_log(logger, logging.INFO, f"in transformer block line 746, hidden_states is None")
             # TENorm produces a "viewed" tensor. This will result in schedule.py's
             # deallocate_output_tensor() throwing an error, so a viewless tensor is
             # created to prevent this.
@@ -749,7 +810,7 @@ class TransformerBlock(GraphableMegatronModule, MegatronModule):
         Returns:
             ShardedStateDict: A dictionary containing the sharded state of the model.
         """
-        assert not sharded_offsets, "Unexpected sharded offsets"
+        debug_assert(not sharded_offsets, "Unexpected sharded offsets")
         # TODO: remove multiple non_homogeneous_layers=True assignments
         #  once non_homogeneous_layers=False support is dropped
         non_homogeneous_layers = metadata is not None and metadata.get(

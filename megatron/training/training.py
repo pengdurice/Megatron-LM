@@ -1089,6 +1089,7 @@ def setup_model_and_optimizer(
         if hasattr(args, f.name):
             kwargs[f.name] = getattr(args, f.name)
     config = OptimizerConfig(**kwargs)
+    print_rank_0(f"OptimizerConfig: {config}")
     config.timers = timers
     optimizer = get_megatron_optimizer(
         config,

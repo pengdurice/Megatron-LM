@@ -572,7 +572,7 @@ def validate_args(args, defaults={}):
                     num_layers += 1
 
                 assert num_layers % args.transformer_pipeline_model_parallel_size == 0, \
-                    'Number of layers should be divisible by the pipeline-model-parallel size'
+                    f"Number of layers should be divisible by the pipeline-model-parallel size ({num_layers}, {args.transformer_pipeline_model_parallel_size})"
     
     if args.virtual_pipeline_model_parallel_size is not None:
         if args.overlap_p2p_comm:
